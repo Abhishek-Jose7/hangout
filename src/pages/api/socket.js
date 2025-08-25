@@ -1,34 +1,33 @@
 import { Server } from 'socket.io';
+import { setIO, getIO } from '@/lib/io';
 
 export default function handler(req, res) {
   if (res.socket.server.io) {
-    console.log('Socket is already running');
+    // Already attached to Next's server
+    setIO(res.socket.server.io);
     res.end();
     return;
   }
 
-  console.log('Setting up socket');
+  const existing = getIO();
+  if (existing) {
+    res.socket.server.io = existing;
+    res.end();
+    return;
+  }
+
   const io = new Server(res.socket.server);
   res.socket.server.io = io;
+  setIO(io);
 
   io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id);
-
     socket.on('join-group', (groupId) => {
       socket.join(groupId);
-      console.log(`Socket ${socket.id} joined group ${groupId}`);
     });
-
     socket.on('group-updated', (groupData) => {
-      console.log('Group updated:', groupData.code);
       io.to(groupData.id).emit('group-updated', groupData);
-    });
-
-    socket.on('disconnect', () => {
-      console.log('Client disconnected:', socket.id);
     });
   });
 
-  console.log('Socket set up successfully');
   res.end();
 }

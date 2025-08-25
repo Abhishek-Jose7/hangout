@@ -16,20 +16,14 @@ export function useSocket() {
         const socketInstance = io();
         
         socketInstance.on('connect', () => {
-          console.log('Socket connected with ID:', socketInstance.id);
           setIsConnected(true);
         });
         
         socketInstance.on('disconnect', () => {
-          console.log('Socket disconnected');
           setIsConnected(false);
         });
         
         setSocket(socketInstance);
-        
-        return () => {
-          socketInstance.disconnect();
-        };
       } catch (error) {
         console.error('Socket initialization error:', error);
       }
@@ -42,7 +36,7 @@ export function useSocket() {
         socket.disconnect();
       }
     };
-  }, []);
+  }, [setIsConnected, setSocket, socket]);
 
   return { socket, isConnected };
 }

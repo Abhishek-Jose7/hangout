@@ -27,14 +27,14 @@ export async function GET(request: NextRequest) {
     }
     
     // Format members for the Gemini API
-    const formattedMembers = members.map(member => ({
+    const formattedMembers = members.map((member: { name: string; location: string; budget: number; moodTags: string | string[] }) => ({
       name: member.name,
       location: member.location,
       budget: member.budget,
       moodTags: Array.isArray(member.moodTags)
         ? member.moodTags
         : typeof member.moodTags === 'string' && member.moodTags.length > 0
-        ? member.moodTags.split(',').map(tag => tag.trim()).filter(Boolean)
+        ? member.moodTags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
         : []
     }));
     
@@ -43,7 +43,10 @@ export async function GET(request: NextRequest) {
     const locations = locationsResult.locations || [];
 
     // Google Maps API key
-    const MAPS_API_KEY = process.env.MAPS_API_KEY || 'AIzaSyCseHoECDuGyH1atjLlTWDJBQKhQRI2HWU';
+    const MAPS_API_KEY = "AIzaSyCseHoECDuGyH1atjLlTWDJBQKhQRI2HWU";
+    if (!MAPS_API_KEY) {
+      return NextResponse.json({ success: false, error: 'MAPS_API_KEY not set' }, { status: 500 });
+    }
 
     // Helper to fetch place details from Google Maps Places API
     async function fetchPlaceDetails(placeName: string, location: string) {

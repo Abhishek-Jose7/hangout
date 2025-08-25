@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { randomBytes } from 'crypto';
+import { getIO } from '@/lib/io';
 
 // Generate a random 6-character code
 function generateGroupCode(): string {
@@ -17,6 +18,12 @@ export async function POST(request: NextRequest) {
         code
       }
     });
+
+    // Emit group-updated for the new group room
+    const io = getIO();
+    if (io) {
+      io.to(group.id).emit('group-updated', group);
+    }
     
     return NextResponse.json({ success: true, group });
   } catch (error) {

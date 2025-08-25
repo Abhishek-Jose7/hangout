@@ -45,7 +45,7 @@ export default function CreateGroup() {
         <h1 className="text-3xl font-bold text-center mb-6 text-blue-700">Create a New Group</h1>
         
         <p className="text-gray-600 mb-8 text-center">
-          Click the button below to create a new group. You'll receive a unique code that others can use to join your group.
+          Click the button below to create a new group. You&apos;ll receive a unique code that others can use to join your group.
         </p>
         
         {error && (
