@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         return {
           address: place.formatted_address || '',
           rating: place.rating || null,
-          photos: place.photos ? place.photos.slice(0, 2).map((p: any) => `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${p.photo_reference}&key=${MAPS_API_KEY}`) : [],
+          photos: place.photos ? place.photos.slice(0, 2).map((p: { photo_reference: string }) => `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${p.photo_reference}&key=${MAPS_API_KEY}`) : [],
           priceLevel: place.price_level || null,
           name: place.name || placeName
         };
@@ -63,15 +63,28 @@ export async function GET(request: NextRequest) {
     }
 
     // For each location, fetch details for each itinerary item
-    const enhancedLocations = await Promise.all(locations.map(async (loc: any) => {
-      const itineraryDetails = await Promise.all(
+    type ItineraryDetail = {
+      address: string;
+      rating: number | null;
+      photos: string[];
+      priceLevel: number | null;
+      name: string;
+    };
+    type LocationType = {
+      name: string;
+      description: string;
+      itinerary: string[];
+      estimatedCost: number;
+    };
+    const enhancedLocations = await Promise.all(locations.map(async (loc: LocationType) => {
+      const itineraryDetails: ItineraryDetail[] = await Promise.all(
         (loc.itinerary || []).map(async (item: string) => {
           const details = await fetchPlaceDetails(item, loc.name);
-          return details;
+          return details as ItineraryDetail;
         })
       );
       // If all itinerary details failed geocoding, fallback to just the location name
-      const allFailed = itineraryDetails.every(d => !d.address);
+      const allFailed = itineraryDetails.every((d: ItineraryDetail) => !d.address);
       if (allFailed) {
         console.warn(`All activities for location '${loc.name}' failed geocoding. Falling back to location name only.`);
         itineraryDetails.push({ address: loc.name, rating: null, photos: [], priceLevel: null, name: loc.name });

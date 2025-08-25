@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // Initialize the Gemini API client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-export async function findOptimalLocations(members: { name: string; location: string; budget: number }[]) {
+export async function findOptimalLocations(members: { name: string; location: string; budget: number; moodTags?: string }[]) {
   try {
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     

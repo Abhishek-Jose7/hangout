@@ -13,7 +13,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 
 type Member = {
   id: string;
@@ -64,20 +64,20 @@ export default function GroupPage() {
   const code = params?.code ? String(params.code) : '';
   
   const [group, setGroup] = useState<Group | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>('');
   
-  const [name, setName] = useState('');
-  const [location, setLocation] = useState('');
-  const [budget, setBudget] = useState('');
+  const [name, setName] = useState<string>('');
+  const [location, setLocation] = useState<string>('');
+  const [budget, setBudget] = useState<string>('');
   const [moodTags, setMoodTags] = useState<string[]>([]);
-  const [isJoining, setIsJoining] = useState(false);
-  const [joinError, setJoinError] = useState('');
-  const [joinSuccess, setJoinSuccess] = useState(false);
-  const [hasJoined, setHasJoined] = useState(false);
+  const [isJoining, setIsJoining] = useState<boolean>(false);
+  const [joinError, setJoinError] = useState<string>('');
+  const [joinSuccess, setJoinSuccess] = useState<boolean>(false);
+  const [hasJoined, setHasJoined] = useState<boolean>(false);
   
   const [locations, setLocations] = useState<Location[]>([]);
-  const [isLoadingLocations, setIsLoadingLocations] = useState(false);
+  const [isLoadingLocations, setIsLoadingLocations] = useState<boolean>(false);
   
   // Fetch group data
   useEffect(() => {
@@ -111,7 +111,7 @@ export default function GroupPage() {
     }
     
     // Set up socket connection
-    let socket: any;
+  let socket: Socket;
     try {
       socket = io();
       socket.on('connect', () => {
@@ -135,11 +135,11 @@ export default function GroupPage() {
         }
       });
     } catch (err) {
-      setError('Socket connection error');
+      setError(err instanceof Error ? err.message : 'Socket connection error');
     }
     return () => {
       if (socket) {
-        (socket as any).disconnect();
+        socket.disconnect();
       }
     };
   }, [code, group?.id]);
@@ -232,7 +232,7 @@ export default function GroupPage() {
       }
       setLocations(data.locations || []);
     } catch (err) {
-      setError('Failed to find optimal locations. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to find optimal locations. Please try again.');
       setLocations([]);
     } finally {
       setIsLoadingLocations(false);

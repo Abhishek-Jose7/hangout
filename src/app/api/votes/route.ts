@@ -22,7 +22,12 @@ export async function POST(request: NextRequest) {
     // Count votes for each itinerary
     const votes = await prisma.itineraryVotes.findMany({ where: { groupId } });
     const voteCounts: Record<number, number> = {};
-    votes.forEach((v: any) => {
+    type Vote = {
+      itineraryIdx: number;
+      groupId: string;
+      memberId: string;
+    };
+    (votes as Vote[]).forEach((v) => {
       voteCounts[v.itineraryIdx] = (voteCounts[v.itineraryIdx] || 0) + 1;
     });
 
