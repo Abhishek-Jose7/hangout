@@ -3,18 +3,18 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // Initialize the Gemini API client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-export async function findOptimalLocations(members: { name: string; location: string; budget: number; moodTags?: string }[]) {
+export async function findOptimalLocations(members: { name: string; location: string; budget: number; moodTags: string[] }[]) {
   try {
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     
     const locations = members.map(member => member.location);
     const budgets = members.map(member => member.budget);
-  const allMoodTags = members.flatMap(member => member.moodTags ? member.moodTags.split(',') : []);
+  const allMoodTags = members.flatMap(member => member.moodTags ?? []);
     const prompt = `
       I have a group of ${members.length} people located at: ${locations.join(', ')}. 
       Their budgets are: ${budgets.join(', ')} respectively.
       The group's preferred moods/tags are: ${allMoodTags.join(', ')}.
-      Please find 3-4 optimal meetup locations that are real, geocodable places (cities, towns, or well-known areas) convenient for everyone to meet. Do not suggest vague or fictional places.
+      Please find 4-5 optimal meetup locations that are real, geocodable places (cities, towns, or well-known areas) convenient and equally fair for everyone to meet. Use travel time for each member through train as a base. Do not suggest vague or fictional places.
       For each location, suggest a brief itinerary of activities that fit within the average budget of ${budgets.reduce((a, b) => a + b, 0) / budgets.length} and match the group's mood tags.
       Format the response as JSON with this structure:
       {

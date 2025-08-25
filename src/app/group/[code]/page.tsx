@@ -9,7 +9,7 @@ type ItineraryDetail = {
   priceLevel: number | null;
 };
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -20,6 +20,7 @@ type Member = {
   name: string;
   location: string;
   budget: number;
+  moodTags: string[];
 };
 
 type Group = {
@@ -60,7 +61,6 @@ export default function GroupPage() {
     }
   };
   const params = useParams();
-  const router = useRouter();
   const code = params?.code ? String(params.code) : '';
   
   const [group, setGroup] = useState<Group | null>(null);
@@ -351,7 +351,7 @@ export default function GroupPage() {
                     label="Your Name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter your name"
+                    placeholder="Enter your name (use &apos; for apostrophe)"
                     fullWidth
                     required
                     disabled={isJoining}

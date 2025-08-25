@@ -28,10 +28,14 @@ export async function GET(request: NextRequest) {
     
     // Format members for the Gemini API
     const formattedMembers = members.map(member => ({
-  name: member.name,
-  location: member.location,
-  budget: member.budget,
-  moodTags: member.moodTags ?? ''
+      name: member.name,
+      location: member.location,
+      budget: member.budget,
+      moodTags: Array.isArray(member.moodTags)
+        ? member.moodTags
+        : typeof member.moodTags === 'string' && member.moodTags.length > 0
+        ? member.moodTags.split(',').map(tag => tag.trim()).filter(Boolean)
+        : []
     }));
     
     // Get optimal locations using Gemini API

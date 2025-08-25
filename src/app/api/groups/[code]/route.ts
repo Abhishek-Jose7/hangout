@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { RouteContext } from 'next';
+// Removed invalid import for RouteContext
 import { prisma } from '@/lib/prisma';
 
 // Get group by code
 export async function GET(
   request: NextRequest,
-  context: RouteContext
+  context: any // Replace with a more specific type if available
 ) {
   try {
   const code = context.params.code;
