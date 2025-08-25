@@ -1,0 +1,48 @@
+// Prisma schema for hangout app using SQLite
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Group {
+  id       String   @id @default(cuid())
+  code     String   @unique
+  members  Member[]
+  votes    ItineraryVotes[]
+
+  @@index([code])
+}
+
+model Member {
+  id        String  @id @default(cuid())
+  name      String
+  location  String
+  budget    Float
+  moodTags  String   // Comma-separated tags as stored by API
+
+  groupId   String
+  group     Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  votes     ItineraryVotes[]
+
+  @@index([groupId])
+}
+
+model ItineraryVotes {
+  id           String @id @default(cuid())
+  groupId      String
+  memberId     String
+  itineraryIdx Int
+
+  group        Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member       Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, memberId])
+  @@index([groupId])
+  @@index([memberId])
+}

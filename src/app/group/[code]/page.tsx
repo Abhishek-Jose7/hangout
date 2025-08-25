@@ -13,7 +13,8 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { io, Socket } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client'; // eslint-disable-line @typescript-eslint/no-unused-vars
+import { useSocket } from '@/hooks/useSocket';
 
 type Member = {
   id: string;
@@ -41,6 +42,7 @@ export default function GroupPage() {
   const [voteCounts, setVoteCounts] = useState<Record<number, number>>({});
   const [finalisedIdx, setFinalisedIdx] = useState<number | null>(null);
   const [votedIdx, setVotedIdx] = useState<number | null>(null);
+  const { socket, isConnected } = useSocket();
 
   // Helper to get current memberId (could be from session, localStorage, etc.)
   const memberId = typeof window !== 'undefined' ? localStorage.getItem('memberId') : null;
@@ -110,39 +112,25 @@ export default function GroupPage() {
       fetchGroup();
     }
     
-    // Set up socket connection
-  let socket: Socket;
-    try {
-      socket = io();
-      socket.on('connect', () => {
-        if (group?.id) {
-          socket.emit('join-group', group.id);
-        }
-      });
-      socket.on('group-updated', (updatedGroup: Group) => {
-        if (updatedGroup.code === code) {
-          setGroup(updatedGroup);
-        }
-      });
-      socket.on('member-joined', (updatedGroup: Group) => {
-        if (updatedGroup.code === code) {
-          setGroup(updatedGroup);
-        }
-      });
-      socket.on('member-left', (updatedGroup: Group) => {
-        if (updatedGroup.code === code) {
-          setGroup(updatedGroup);
-        }
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Socket connection error');
-    }
-    return () => {
-      if (socket) {
-        socket.disconnect();
-      }
+  }, [code]);
+
+  // Join socket room and subscribe to updates when connected/group ready
+  useEffect(() => {
+    if (!socket || !group?.id) return;
+    socket.emit('join-group', group.id);
+    const onGroupUpdated = (updatedGroup: Group) => {
+      if (updatedGroup.code === code) setGroup(updatedGroup);
     };
-  }, [code, group?.id]);
+    const onMemberJoined = (updatedGroup: Group) => {
+      if (updatedGroup.code === code) setGroup(updatedGroup);
+    };
+    socket.on('group-updated', onGroupUpdated);
+    socket.on('member-joined', onMemberJoined);
+    return () => {
+      socket.off('group-updated', onGroupUpdated);
+      socket.off('member-joined', onMemberJoined);
+    };
+  }, [socket, group?.id, code]);
   
   const handleJoinGroup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,6 +181,11 @@ export default function GroupPage() {
         throw new Error(data.error || 'Failed to join group');
       }
       
+      // Persist memberId for later voting
+      if (typeof window !== 'undefined' && data.member?.id) {
+        localStorage.setItem('memberId', data.member.id);
+      }
+
       console.log("Successfully joined group:", data);
       setJoinSuccess(true);
       

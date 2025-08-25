@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getIO } from '@/lib/io';
 
 // Create a new member
 export async function POST(request: NextRequest) {
@@ -36,6 +37,18 @@ export async function POST(request: NextRequest) {
         groupId
       }
     });
+
+    // Emit member-joined with updated group payload
+    const io = getIO();
+    if (io) {
+      const updatedGroup = await prisma.group.findUnique({
+        where: { id: groupId },
+        include: { members: true }
+      });
+      if (updatedGroup) {
+        io.to(groupId).emit('member-joined', updatedGroup);
+      }
+    }
     
     return NextResponse.json({ success: true, member });
   } catch (error) {

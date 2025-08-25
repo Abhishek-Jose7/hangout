@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-// Removed invalid import for RouteContext
 import { prisma } from '@/lib/prisma';
+import { getIO } from '@/lib/io';
+
+type RouteContext = {
+  params: Promise<{
+    code: string;
+  }>;
+};
 
 // Get group by code
 export async function GET(
   request: NextRequest,
-  context: any // Replace with a more specific type if available
+  context: RouteContext
 ) {
   try {
-  const code = context.params.code;
+  const { code } = await context.params;
 
     const group = await prisma.group.findUnique({
       where: { code },
@@ -20,6 +26,12 @@ export async function GET(
         { success: false, error: 'Group not found' },
         { status: 404 }
       );
+    }
+
+    // Optional notify listeners with a fresh payload
+    const io = getIO();
+    if (io) {
+      io.to(group.id).emit('group-updated', group);
     }
 
     return NextResponse.json({ success: true, group });
