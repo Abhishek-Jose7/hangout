@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { getIO } from '@/lib/io';
 
 type RouteContext = {
-  params: Promise<{
+  params: {
     code: string;
-  }>;
+  };
 };
 
 // Get group by code
@@ -14,7 +14,7 @@ export async function GET(
   context: RouteContext
 ) {
   try {
-  const { code } = await context.params;
+  const { code } = context.params;
 
     const group = await prisma.group.findUnique({
       where: { code },
