@@ -1,4 +1,4 @@
-// Prisma schema for hangout app using SQLite
+// Prisma schema for hangout app using PostgreSQL (Supabase)
 
 generator client {
   provider = "prisma-client-js"

@@ -40,10 +40,20 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 Create a `.env` at the project root (do not commit it), or set these in Vercel Project Settings → Environment Variables:
 
 ```
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE?sslmode=require
 MAPS_API_KEY=your_google_maps_places_api_key
 GEMINI_API_KEY=your_gemini_api_key
 ```
 
-On Vercel, ensure Build Command runs Prisma steps (already configured via package.json scripts):
-- postinstall: prisma generate
-- build: prisma migrate deploy && next build
+### Supabase (Postgres)
+- In Supabase → Project Settings → Database → Connection string → copy the URI (use `?sslmode=require`).
+- Set `DATABASE_URL` locally and on Vercel.
+- On Vercel, the build runs:
+  - `prisma generate` (postinstall)
+  - `prisma migrate deploy && next build`
+
+Initial setup locally:
+```
+npx prisma generate
+npx prisma migrate dev --name init
+```

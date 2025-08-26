@@ -15,7 +15,7 @@ export async function findOptimalLocations(members: { name: string; location: st
       Their budgets are: ${budgets.join(', ')} respectively.
       The group's preferred moods/tags are: ${allMoodTags.join(', ')}.
       Please find 4-5 optimal centroid meetup locations based on the groups location that are real, geocodable places (cities, towns, or well-known areas) convenient and equally fair for everyone to meet. Use travel time  through trains for each member as a base. Do not suggest vague or fictional places.
-      For each location, suggest a brief itinerary of activities that fit within the average budget of ${budgets.reduce((a, b) => a + b, 0) / budgets.length} and match the group's mood tags.
+      For each location, suggest a brief itinerary of activities that people usually do when they hangout like cafes,bowlings etc that fit within the average budget of ${budgets.reduce((a, b) => a + b, 0) / budgets.length} and match the group's mood tags.
       Format the response as JSON with this structure:
       {
         "locations": [

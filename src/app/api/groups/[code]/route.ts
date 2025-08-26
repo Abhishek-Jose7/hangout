@@ -2,19 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getIO } from '@/lib/io';
 
-type RouteContext = {
-  params: {
-    code: string;
-  };
-};
-
 // Get group by code
 export async function GET(
   request: NextRequest,
-  context: RouteContext
+  { params }: { params: Promise<{ code: string }> }
 ) {
   try {
-  const { code } = context.params;
+  const { code } = await params;
 
     const group = await prisma.group.findUnique({
       where: { code },

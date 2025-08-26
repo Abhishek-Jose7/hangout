@@ -20,8 +20,6 @@ const nextConfig: NextConfig = {
   httpAgentOptions: {
     keepAlive: true,
   },
-  // Improve stability for page transitions
-  swcMinify: true,
 };
 
 export default nextConfig;
