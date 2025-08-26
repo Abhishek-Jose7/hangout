@@ -57,3 +57,9 @@ Initial setup locally:
 npx prisma generate
 npx prisma migrate dev --name init
 ```
+
+## Vercel troubleshooting
+
+- Ensure `DATABASE_URL` and `GEMINI_API_KEY` are configured in the Vercel Project → Settings → Environment Variables (Production and Preview as needed).
+- Do not commit `.env` with real secrets. Use `.env.example` as a template.
+- If Prisma fails during build on Vercel, enable the `POSTINSTALL` or ensure `prisma generate` runs during install. The `build` script already runs `prisma migrate deploy && next build`.
