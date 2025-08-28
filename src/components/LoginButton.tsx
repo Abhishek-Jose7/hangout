@@ -18,22 +18,20 @@ export const LoginButton: React.FC<LoginButtonProps> = ({ onLoginSuccess, classN
     try {
       setIsLoading(true);
       
-      // Add timeout for mobile devices to prevent stuck loading state
+      // Add timeout to prevent stuck loading state
       const timeoutId = setTimeout(() => {
-        if (isMobile()) {
-          console.log('Mobile sign-in timeout - redirect should have happened');
-          setIsLoading(false);
-        }
-      }, 5000); // 5 second timeout
+        console.log('Sign-in timeout - redirect should have happened');
+        setIsLoading(false);
+      }, 3000); // 3 second timeout
       
       await signIn();
       clearTimeout(timeoutId);
       onLoginSuccess?.();
     } catch (error) {
       console.error('Login failed:', error);
-      // Don't show error for redirect (mobile devices)
+      // Don't show error for redirect (this is expected behavior)
       if (error instanceof Error && error.message === 'Redirecting to Google sign-in...') {
-        // This is expected for mobile devices, don't show error
+        // This is expected for redirect, don't show error
         // Keep loading state true since redirect is happening
         return;
       }
@@ -79,24 +77,13 @@ export const LoginButton: React.FC<LoginButtonProps> = ({ onLoginSuccess, classN
     );
   }
 
-  // Check if device is mobile
-  const isMobile = () => {
-    if (typeof window === 'undefined') return false;
-    const userAgent = navigator.userAgent;
-    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
-    const isSmallScreen = window.innerWidth <= 768;
-    const hasTouchScreen = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    
-    return isMobileUA || (isSmallScreen && hasTouchScreen);
-  };
-
   return (
     <Button 
       onClick={handleSignIn}
       disabled={isLoading}
       className={`bg-blue-600 hover:bg-blue-700 ${className}`}
     >
-      {isLoading ? 'Signing in...' : `Sign in with Google${isMobile() ? ' (Mobile)' : ''}`}
+      {isLoading ? 'Signing in...' : 'Sign in with Google'}
     </Button>
   );
 };

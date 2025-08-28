@@ -1,7 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
-  signInWithPopup, 
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider, 
@@ -26,34 +25,13 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
-// Check if device is mobile
-const isMobile = () => {
-  if (typeof window === 'undefined') return false;
-  const userAgent = navigator.userAgent;
-  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
-  const isSmallScreen = window.innerWidth <= 768;
-  const hasTouchScreen = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  
-  return isMobileUA || (isSmallScreen && hasTouchScreen);
-};
-
 // Authentication functions
 export const signInWithGoogle = async (): Promise<UserCredential> => {
-  const mobile = isMobile();
-  console.log('Device type:', mobile ? 'Mobile' : 'Desktop');
-  
-  if (mobile) {
-    // Use redirect for mobile devices
-    console.log('Using redirect for mobile device');
-    await signInWithRedirect(auth, googleProvider);
-    // The redirect will happen, so we won't return anything
-    // The result will be handled in the auth state change
-    throw new Error('Redirecting to Google sign-in...');
-  } else {
-    // Use popup for desktop devices
-    console.log('Using popup for desktop device');
-    return signInWithPopup(auth, googleProvider);
-  }
+  console.log('Using redirect for all devices');
+  await signInWithRedirect(auth, googleProvider);
+  // The redirect will happen, so we won't return anything
+  // The result will be handled in the auth state change
+  throw new Error('Redirecting to Google sign-in...');
 };
 
 export const signOutUser = async (): Promise<void> => {
