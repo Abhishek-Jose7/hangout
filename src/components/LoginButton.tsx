@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { useAuthContext } from './AuthProvider';
 import Button from './ui/Button';
 
@@ -41,9 +42,11 @@ export const LoginButton: React.FC<LoginButtonProps> = ({ onLoginSuccess, classN
       <div className={`flex items-center gap-4 ${className}`}>
         <div className="flex items-center gap-2">
           {user.photoURL && (
-            <img 
+            <Image 
               src={user.photoURL} 
               alt="Profile" 
+              width={32}
+              height={32}
               className="w-8 h-8 rounded-full"
             />
           )}

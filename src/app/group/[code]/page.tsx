@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { io, Socket } from 'socket.io-client'; // eslint-disable-line @typescript-eslint/no-unused-vars
@@ -46,7 +47,7 @@ export default function GroupPage() {
   const [voteCounts, setVoteCounts] = useState<Record<number, number>>({});
   const [finalisedIdx, setFinalisedIdx] = useState<number | null>(null);
   const [votedIdx, setVotedIdx] = useState<number | null>(null);
-  const { socket, isConnected } = useSocket();
+  const { socket } = useSocket();
   const { user, isAuthenticated, loading: authLoading } = useAuthContext();
 
   // Helper to get current memberId (could be from session, localStorage, etc.)
@@ -108,7 +109,7 @@ export default function GroupPage() {
         
         // Check if current user is already a member
         if (isAuthenticated && user && data.group.members) {
-          const existingMember = data.group.members.find((member: any) => 
+          const existingMember = data.group.members.find((member: Member) => 
             member.firebaseUid === user.uid
           );
           if (existingMember) {
@@ -471,13 +472,13 @@ export default function GroupPage() {
                             <p className="text-green-700 mb-1">Price Level: {'₹'.repeat(item.priceLevel ?? 0)}</p>
                           )}
                         </div>
-                        {item.photos && item.photos.length > 0 && (
-                          <div className="flex gap-2 mt-2 md:mt-0">
-                            {item.photos.map((photoUrl: string, idx: number) => (
-                              <img key={idx} src={photoUrl} alt="Place photo" className="w-24 h-24 object-cover rounded" />
-                            ))}
-                          </div>
-                        )}
+                                                 {item.photos && item.photos.length > 0 && (
+                           <div className="flex gap-2 mt-2 md:mt-0">
+                             {item.photos.map((photoUrl: string, idx: number) => (
+                               <Image key={idx} src={photoUrl} alt="Place photo" width={96} height={96} className="w-24 h-24 object-cover rounded" />
+                             ))}
+                           </div>
+                         )}
                       </div>
                     </div>
                   ))}

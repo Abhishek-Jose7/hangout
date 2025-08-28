@@ -6,7 +6,7 @@ import { LoginButton } from '@/components/LoginButton';
 import { useAuthContext } from '@/components/AuthProvider';
 
 export default function Home() {
-  const { isAuthenticated, user } = useAuthContext();
+  const { } = useAuthContext();
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-6">

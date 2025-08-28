@@ -3,7 +3,6 @@ import { User } from 'firebase/auth';
 import { 
   signInWithGoogle, 
   signOutUser, 
-  getCurrentUser, 
   onAuthStateChange 
 } from '@/lib/firebase';
 

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { randomBytes } from 'crypto';
 import { getIO } from '@/lib/io';
@@ -9,7 +9,7 @@ function generateGroupCode(): string {
 }
 
 // Create a new group
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     console.log('Creating new group...');
     const code = generateGroupCode();
