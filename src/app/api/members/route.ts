@@ -1,11 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getIO } from '@/lib/io';
+import { adminAuth } from '@/lib/firebaseAdmin';
 
 // Create a new member
 export async function POST(request: NextRequest) {
   try {
-  const { name, location, budget, groupId, moodTags, firebaseUid, email } = await request.json();
+  const payload = await request.json();
+  const { name, location, budget, groupId, moodTags, firebaseUid: bodyFirebaseUid, email } = payload;
+
+  // Server-side ID token verification
+  const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
+  let tokenFirebaseUid: string | null = null;
+  if (!adminAuth) {
+    // Admin SDK not initialized (missing envs) — reject to avoid creating unauthenticated members
+    return NextResponse.json({ success: false, error: 'Server not configured for token verification' }, { status: 401 });
+  }
+  if (!authHeader) {
+    return NextResponse.json({ success: false, error: 'Missing Authorization header' }, { status: 401 });
+  }
+  const match = authHeader.match(/^Bearer\s+(.*)$/i);
+  const idToken = match ? match[1] : authHeader;
+  try {
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    tokenFirebaseUid = decoded.uid || null;
+  } catch (err) {
+    console.error('Token verification failed:', err);
+    return NextResponse.json({ success: false, error: 'Invalid ID token' }, { status: 401 });
+  }
     
     // Validate required fields
     if (!name || !location || budget === undefined || !groupId) {
@@ -27,11 +49,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Determine authoritative firebaseUid (token overrides body)
+    const firebaseUidToUse = tokenFirebaseUid || bodyFirebaseUid || null;
     // Check if user is already a member of this group
-    if (firebaseUid) {
+    if (firebaseUidToUse) {
       const existingMember = await prisma.member.findFirst({
         where: {
-          firebaseUid,
+          firebaseUid: firebaseUidToUse,
           groupId
         }
       });
@@ -51,7 +75,7 @@ export async function POST(request: NextRequest) {
         location,
         budget: parseFloat(budget.toString()),
         moodTags: Array.isArray(moodTags) ? moodTags.join(',') : '',
-        firebaseUid: firebaseUid || null,
+        firebaseUid: tokenFirebaseUid || bodyFirebaseUid || null,
         email: email || null,
         groupId
       }
