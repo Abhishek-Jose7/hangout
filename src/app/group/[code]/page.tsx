@@ -10,6 +10,7 @@ import { io, Socket } from 'socket.io-client'; // eslint-disable-line @typescrip
 import { useSocket } from '@/hooks/useSocket';
 import { useAuthContext } from '@/components/AuthProvider';
 import { LoginButton } from '@/components/LoginButton';
+import { useFetchWithAuth } from '@/lib/fetchWithAuth';
 
 type ItineraryDetail = {
   name: string;
@@ -49,6 +50,7 @@ export default function GroupPage() {
   const [votedIdx, setVotedIdx] = useState<number | null>(null);
   const { socket } = useSocket();
   const { user, isAuthenticated, loading: authLoading } = useAuthContext();
+  const fetchWithAuth = useFetchWithAuth();
 
   // Helper to get current memberId (could be from session, localStorage, etc.)
   const memberId = typeof window !== 'undefined' ? localStorage.getItem('memberId') : null;
@@ -173,13 +175,8 @@ export default function GroupPage() {
         budget: parseFloat(budget),
         groupId: group.id,
       });
-      
-      const response = await fetch('/api/members', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+
+      const body = JSON.stringify({
           name: name.trim(),
           location: location.trim(),
           budget: parseFloat(budget),
@@ -187,8 +184,11 @@ export default function GroupPage() {
           groupId: group.id,
           firebaseUid: user?.uid || null,
           email: user?.email || null,
-        }),
-      });
+        });
+
+      const response = fetchWithAuth
+        ? await fetchWithAuth('/api/members', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body })
+        : await fetch('/api/members', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
       
       if (!response.ok) {
         throw new Error(`Server error: ${response.status}`);

@@ -17,26 +17,13 @@ export const LoginButton: React.FC<LoginButtonProps> = ({ onLoginSuccess, classN
   const handleSignIn = async () => {
     try {
       setIsLoading(true);
-      
-      // Add timeout to prevent stuck loading state
-      const timeoutId = setTimeout(() => {
-        console.log('Sign-in timeout - redirect should have happened');
-        setIsLoading(false);
-      }, 3000); // 3 second timeout
-      
-      await signIn();
-      clearTimeout(timeoutId);
-      onLoginSuccess?.();
+  // Redirect-based sign-in will navigate away. We set loading=true and let the browser redirect.
+  await signIn();
+  onLoginSuccess?.();
     } catch (error) {
       console.error('Login failed:', error);
-      // Don't show error for redirect (this is expected behavior)
-      if (error instanceof Error && error.message === 'Redirecting to Google sign-in...') {
-        // This is expected for redirect, don't show error
-        // Keep loading state true since redirect is happening
-        return;
-      }
-      // For other errors, stop loading
-      setIsLoading(false);
+  // Stop loading on error
+  setIsLoading(false);
     }
   };
 

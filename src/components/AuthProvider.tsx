@@ -10,6 +10,7 @@ interface AuthContextType {
   signIn: () => Promise<User>;
   signOut: () => Promise<void>;
   isAuthenticated: boolean;
+  getIdToken?: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,7 +31,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const auth = useAuth();
 
   return (
-    <AuthContext.Provider value={auth}>
+    <AuthContext.Provider value={auth as unknown as AuthContextType}>
       {children}
     </AuthContext.Provider>
   );

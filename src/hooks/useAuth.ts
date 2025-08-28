@@ -37,8 +37,9 @@ export const useAuth = () => {
 
   const signIn = async () => {
     try {
-      const result = await signInWithGoogle();
-      return result.user;
+  await signInWithGoogle();
+  // Redirect will occur; user will be set in onAuthStateChanged after redirect
+  return null;
     } catch (error) {
       console.error('Sign in error:', error);
       throw error;
@@ -54,11 +55,17 @@ export const useAuth = () => {
     }
   };
 
+  const getIdToken = async () => {
+    if (!auth.currentUser) return null;
+    return auth.currentUser.getIdToken();
+  };
+
   return {
     user,
     loading,
     signIn,
     signOut,
-    isAuthenticated: !!user
+  isAuthenticated: !!user,
+  getIdToken
   };
 };

@@ -1,13 +1,13 @@
 import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, 
+import {
+  getAuth,
   signInWithRedirect,
   getRedirectResult,
-  GoogleAuthProvider, 
-  signOut, 
+  GoogleAuthProvider,
+  signOut,
   onAuthStateChanged,
   User,
-  UserCredential 
+  UserCredential,
 } from 'firebase/auth';
 
 // Firebase configuration - you'll need to add these to your .env.local file
@@ -26,12 +26,10 @@ const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
 // Authentication functions
-export const signInWithGoogle = async (): Promise<UserCredential> => {
-  console.log('Using redirect for all devices');
+export const signInWithGoogle = async (): Promise<UserCredential | void> => {
+  // Use redirect for all devices to avoid popup/cancel issues across browsers
   await signInWithRedirect(auth, googleProvider);
-  // The redirect will happen, so we won't return anything
-  // The result will be handled in the auth state change
-  throw new Error('Redirecting to Google sign-in...');
+  return;
 };
 
 export const signOutUser = async (): Promise<void> => {
