@@ -1,13 +1,5 @@
 "use client";
 
-// ...existing code...
-type ItineraryDetail = {
-  name: string;
-  address: string;
-  rating: number | null;
-  photos: string[];
-  priceLevel: number | null;
-};
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -15,6 +7,16 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { io, Socket } from 'socket.io-client'; // eslint-disable-line @typescript-eslint/no-unused-vars
 import { useSocket } from '@/hooks/useSocket';
+import { useAuthContext } from '@/components/AuthProvider';
+import { LoginButton } from '@/components/LoginButton';
+
+type ItineraryDetail = {
+  name: string;
+  address: string;
+  rating: number | null;
+  photos: string[];
+  priceLevel: number | null;
+};
 
 type Member = {
   id: string;
@@ -22,6 +24,8 @@ type Member = {
   location: string;
   budget: number;
   moodTags: string[];
+  firebaseUid?: string;
+  email?: string;
 };
 
 type Group = {
@@ -43,6 +47,7 @@ export default function GroupPage() {
   const [finalisedIdx, setFinalisedIdx] = useState<number | null>(null);
   const [votedIdx, setVotedIdx] = useState<number | null>(null);
   const { socket, isConnected } = useSocket();
+  const { user, isAuthenticated, loading: authLoading } = useAuthContext();
 
   // Helper to get current memberId (could be from session, localStorage, etc.)
   const memberId = typeof window !== 'undefined' ? localStorage.getItem('memberId') : null;
@@ -100,6 +105,17 @@ export default function GroupPage() {
         
         console.log("Group data fetched:", data.group);
         setGroup(data.group);
+        
+        // Check if current user is already a member
+        if (isAuthenticated && user && data.group.members) {
+          const existingMember = data.group.members.find((member: any) => 
+            member.firebaseUid === user.uid
+          );
+          if (existingMember) {
+            setHasJoined(true);
+            localStorage.setItem('memberId', existingMember.id);
+          }
+        }
       } catch (err) {
         console.error('Error fetching group:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch group');
@@ -112,7 +128,7 @@ export default function GroupPage() {
       fetchGroup();
     }
     
-  }, [code]);
+  }, [code, isAuthenticated, user]);
 
   // Join socket room and subscribe to updates when connected/group ready
   useEffect(() => {
@@ -168,6 +184,8 @@ export default function GroupPage() {
           budget: parseFloat(budget),
           moodTags,
           groupId: group.id,
+          firebaseUid: user?.uid || null,
+          email: user?.email || null,
         }),
       });
       
@@ -323,7 +341,17 @@ export default function GroupPage() {
           {/* Join Form */}
           <div className="bg-gray-50 p-6 rounded-lg border">
             <h2 className="text-xl font-semibold mb-4 text-blue-700">Join this Group</h2>
-            {hasJoined ? (
+            
+            {authLoading ? (
+              <div className="text-center py-4">
+                <p className="text-gray-600">Loading authentication...</p>
+              </div>
+            ) : !isAuthenticated ? (
+              <div className="text-center py-4">
+                <p className="text-gray-600 mb-4">Please sign in to join this group</p>
+                <LoginButton />
+              </div>
+            ) : hasJoined ? (
               <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
                 You have joined the group. Personal info will not be shown again.
               </div>

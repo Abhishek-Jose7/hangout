@@ -11,13 +11,16 @@ function generateGroupCode(): string {
 // Create a new group
 export async function POST(request: NextRequest) {
   try {
+    console.log('Creating new group...');
     const code = generateGroupCode();
+    console.log('Generated code:', code);
     
     const group = await prisma.group.create({
       data: {
         code
       }
     });
+    console.log('Group created successfully:', group);
 
     // Emit group-updated for the new group room
     const io = getIO();
@@ -29,7 +32,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating group:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create group' },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to create group' },
       { status: 500 }
     );
   }

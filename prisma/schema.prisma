@@ -24,6 +24,8 @@ model Member {
   location  String
   budget    Float
   moodTags  String   // Comma-separated tags as stored by API
+  firebaseUid String? // Firebase user ID for authentication
+  email     String?  // User's email from Firebase
 
   groupId   String
   group     Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -31,6 +33,8 @@ model Member {
   votes     ItineraryVotes[]
 
   @@index([groupId])
+  @@index([firebaseUid])
+  @@unique([firebaseUid, groupId]) // One user can only be in a group once
 }
 
 model ItineraryVotes {

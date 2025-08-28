@@ -14,15 +14,39 @@ export async function findOptimalLocations(members: { name: string; location: st
       I have a group of ${members.length} people located at: ${locations.join(', ')}. 
       Their budgets are: ${budgets.join(', ')} respectively.
       The group's preferred moods/tags are: ${allMoodTags.join(', ')}.
-      Please find 4-5 optimal centroid meetup locations based on the groups location that are real, geocodable places (cities, towns, or well-known areas) convenient and equally fair for everyone to meet. Use travel time  through trains for each member as a base. Do not suggest vague or fictional places.
-      For each location, suggest a brief itinerary of activities that people usually do when they hangout like cafes,bowlings etc that fit within the average budget of ${budgets.reduce((a, b) => a + b, 0) / budgets.length} and match the group's mood tags.
+      Please find 4-5 optimal centroid meetup locations based on the groups location that are real, geocodable places (cities, towns, or well-known areas) convenient and equally fair for everyone to meet. Use travel time through trains for each member as a base. Do not suggest vague or fictional places.
+      
+      For each location, suggest a realistic itinerary of activities that people actually do when they hangout. Focus on popular, accessible activities like:
+      - Arcades and gaming centers
+      - Bowling alleys
+      - Cafes and coffee shops
+      - Museums and galleries
+      - Parks and outdoor spaces
+      - Beaches and waterfront areas
+      - Shopping centers and malls
+      - Movie theaters
+      - Escape rooms
+      - Mini golf
+      - Karaoke bars
+      - Food courts and restaurants
+      - Board game cafes
+      - Trampoline parks
+      - Laser tag
+      - Ice skating rinks
+      - Botanical gardens
+      - Aquariums
+      - Zoos
+      - Sports activities (basketball, tennis, etc.)
+      
+      Choose 3-4 activities that fit within the average budget of ${budgets.reduce((a, b) => a + b, 0) / budgets.length} and match the group's mood tags. Make sure the activities are specific, real places that can be found on Google Maps.
+      
       Format the response as JSON with this structure:
       {
         "locations": [
           {
             "name": "Location Name (must be a real, geocodable place)",
-            "description": "Brief description",
-            "itinerary": ["Activity 1", "Activity 2", "Activity 3"],
+            "description": "Brief description of why this location is good for the group",
+            "itinerary": ["Specific Activity 1 (e.g., 'Dave & Buster's Arcade')", "Specific Activity 2 (e.g., 'Starbucks Coffee')", "Specific Activity 3 (e.g., 'Central Park')"],
             "estimatedCost": 123
           }
         ]

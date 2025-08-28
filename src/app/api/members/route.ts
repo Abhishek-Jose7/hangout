@@ -5,7 +5,7 @@ import { getIO } from '@/lib/io';
 // Create a new member
 export async function POST(request: NextRequest) {
   try {
-  const { name, location, budget, groupId, moodTags } = await request.json();
+  const { name, location, budget, groupId, moodTags, firebaseUid, email } = await request.json();
     
     // Validate required fields
     if (!name || !location || budget === undefined || !groupId) {
@@ -26,6 +26,23 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    // Check if user is already a member of this group
+    if (firebaseUid) {
+      const existingMember = await prisma.member.findFirst({
+        where: {
+          firebaseUid,
+          groupId
+        }
+      });
+
+      if (existingMember) {
+        return NextResponse.json(
+          { success: true, member: existingMember, message: 'Already a member of this group' },
+          { status: 200 }
+        );
+      }
+    }
     
     // Create member
     const member = await prisma.member.create({
@@ -34,6 +51,8 @@ export async function POST(request: NextRequest) {
         location,
         budget: parseFloat(budget.toString()),
         moodTags: Array.isArray(moodTags) ? moodTags.join(',') : '',
+        firebaseUid: firebaseUid || null,
+        email: email || null,
         groupId
       }
     });

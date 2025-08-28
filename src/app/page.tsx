@@ -1,11 +1,20 @@
+"use client";
+
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
+import { LoginButton } from '@/components/LoginButton';
+import { useAuthContext } from '@/components/AuthProvider';
 
 export default function Home() {
+  const { isAuthenticated, user } = useAuthContext();
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-6">
       <div className="max-w-md w-full bg-white rounded-xl shadow-xl p-8 border border-blue-100">
-        <h1 className="text-3xl font-bold text-center mb-8 text-blue-700">Group Meetup Planner</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-blue-700">Group Meetup Planner</h1>
+          <LoginButton />
+        </div>
         
         <div className="space-y-8">
           <div className="text-center">
