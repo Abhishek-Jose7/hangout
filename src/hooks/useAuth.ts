@@ -3,7 +3,9 @@ import { User } from 'firebase/auth';
 import { 
   signInWithGoogle, 
   signOutUser, 
-  onAuthStateChange 
+  onAuthStateChange,
+  getRedirectResult,
+  auth
 } from '@/lib/firebase';
 
 export const useAuth = () => {
@@ -11,6 +13,20 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Handle redirect result for mobile devices
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          console.log('Redirect sign-in successful:', result.user);
+        }
+      } catch (error) {
+        console.error('Redirect sign-in error:', error);
+      }
+    };
+
+    handleRedirectResult();
+
     const unsubscribe = onAuthStateChange((user) => {
       setUser(user);
       setLoading(false);

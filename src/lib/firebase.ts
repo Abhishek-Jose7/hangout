@@ -2,6 +2,8 @@ import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider, 
   signOut, 
   onAuthStateChanged,
@@ -24,9 +26,24 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
+// Check if device is mobile
+const isMobile = () => {
+  if (typeof window === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
+
 // Authentication functions
 export const signInWithGoogle = async (): Promise<UserCredential> => {
-  return signInWithPopup(auth, googleProvider);
+  if (isMobile()) {
+    // Use redirect for mobile devices
+    await signInWithRedirect(auth, googleProvider);
+    // The redirect will happen, so we won't return anything
+    // The result will be handled in the auth state change
+    throw new Error('Redirecting to Google sign-in...');
+  } else {
+    // Use popup for desktop devices
+    return signInWithPopup(auth, googleProvider);
+  }
 };
 
 export const signOutUser = async (): Promise<void> => {
@@ -41,4 +58,4 @@ export const onAuthStateChange = (callback: (user: User | null) => void) => {
   return onAuthStateChanged(auth, callback);
 };
 
-export { auth, googleProvider };
+export { auth, googleProvider, getRedirectResult };

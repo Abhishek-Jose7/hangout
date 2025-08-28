@@ -21,6 +21,11 @@ export const LoginButton: React.FC<LoginButtonProps> = ({ onLoginSuccess, classN
       onLoginSuccess?.();
     } catch (error) {
       console.error('Login failed:', error);
+      // Don't show error for redirect (mobile devices)
+      if (error instanceof Error && error.message === 'Redirecting to Google sign-in...') {
+        // This is expected for mobile devices, don't show error
+        return;
+      }
     } finally {
       setIsLoading(false);
     }
@@ -63,13 +68,19 @@ export const LoginButton: React.FC<LoginButtonProps> = ({ onLoginSuccess, classN
     );
   }
 
+  // Check if device is mobile
+  const isMobile = () => {
+    if (typeof window === 'undefined') return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  };
+
   return (
     <Button 
       onClick={handleSignIn}
       disabled={isLoading}
       className={`bg-blue-600 hover:bg-blue-700 ${className}`}
     >
-      {isLoading ? 'Signing in...' : 'Sign in with Google'}
+      {isLoading ? 'Signing in...' : `Sign in with Google${isMobile() ? ' (Mobile)' : ''}`}
     </Button>
   );
 };
