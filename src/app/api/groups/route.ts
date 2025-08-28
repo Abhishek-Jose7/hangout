@@ -26,8 +26,8 @@ export async function POST() {
         attempt++;
         group = await prisma.group.create({ data: { code } });
         break; // success
-      } catch (err: any) {
-        const message = err?.message || '';
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err ?? '');
         // If this is the prepared-statement already exists error (42P05), retry.
         if (message.includes('prepared statement') || message.includes('42P05')) {
           console.warn(`Prisma create attempt ${attempt} failed with prepared-statement error; retrying...`);
@@ -70,8 +70,8 @@ export async function GET() {
         attempt++;
         groups = await prisma.group.findMany({ include: { members: true } });
         break;
-      } catch (err: any) {
-        const message = err?.message || '';
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err ?? '');
         if (message.includes('prepared statement') || message.includes('42P05')) {
           console.warn(`Prisma findMany attempt ${attempt} failed with prepared-statement error; retrying...`);
           await sleep(150 * attempt);
