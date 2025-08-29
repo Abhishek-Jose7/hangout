@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import { LoginButton } from '@/components/LoginButton';
 import { useAuthContext } from '@/components/AuthProvider';
+import FirebaseConfigTest from '@/components/FirebaseConfigTest';
 
 export default function Home() {
   const { } = useAuthContext();
@@ -58,6 +59,9 @@ export default function Home() {
           </div>
         </div>
       </div>
+      
+      {/* Temporary Firebase config test - remove after debugging */}
+      <FirebaseConfigTest />
     </main>
   );
 }
