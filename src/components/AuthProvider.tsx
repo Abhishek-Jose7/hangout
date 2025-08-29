@@ -7,7 +7,7 @@ import { User } from 'firebase/auth';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: () => Promise<User>;
+  signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   isAuthenticated: boolean;
   getIdToken?: () => Promise<string | null>;

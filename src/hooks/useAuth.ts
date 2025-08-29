@@ -35,11 +35,10 @@ export const useAuth = () => {
     return () => unsubscribe();
   }, []);
 
-  const signIn = async () => {
+  const signIn = async (): Promise<void> => {
     try {
-  await signInWithGoogle();
-  // Redirect will occur; user will be set in onAuthStateChanged after redirect
-  return null;
+      await signInWithGoogle();
+      // Popup may resolve immediately; redirect will navigate away. No return value needed.
     } catch (error) {
       console.error('Sign in error:', error);
       throw error;
