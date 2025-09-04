@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { randomBytes } from 'crypto';
+import type { Group } from '@prisma/client';
 import { getIO } from '@/lib/io';
 
 // Generate a random 6-character code
@@ -65,7 +66,7 @@ export async function GET() {
     // Returning an empty array to mitigate the data leak.
     // A proper fix would be to implement authentication and authorization,
     // or remove this endpoint if it's only for debugging.
-    const groups = [];
+    const groups: Group[] = [];
     return NextResponse.json({ success: true, groups });
   } catch (error) {
     console.error('Error fetching groups:', error);
