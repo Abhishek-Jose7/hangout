@@ -61,14 +61,11 @@ export async function POST() {
 // Get all groups (for testing purposes)
 export async function GET() {
   try {
-    const maxAttempts = 3;
-    let attempt = 0;
-    const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
-    let groups = [];
     // This endpoint is a security risk and should not return all groups.
     // Returning an empty array to mitigate the data leak.
     // A proper fix would be to implement authentication and authorization,
     // or remove this endpoint if it's only for debugging.
+    const groups = [];
     return NextResponse.json({ success: true, groups });
   } catch (error) {
     console.error('Error fetching groups:', error);
