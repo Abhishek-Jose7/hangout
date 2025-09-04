@@ -64,24 +64,11 @@ export async function GET() {
     const maxAttempts = 3;
     let attempt = 0;
     const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
-    let groups = null;
-    while (attempt < maxAttempts) {
-      try {
-        attempt++;
-        groups = await prisma.group.findMany({ include: { members: true } });
-        break;
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err ?? '');
-        if (message.includes('prepared statement') || message.includes('42P05')) {
-          console.warn(`Prisma findMany attempt ${attempt} failed with prepared-statement error; retrying...`);
-          await sleep(150 * attempt);
-          continue;
-        }
-        throw err;
-      }
-    }
-    if (!groups) throw new Error('Failed to fetch groups after retries');
-
+    let groups = [];
+    // This endpoint is a security risk and should not return all groups.
+    // Returning an empty array to mitigate the data leak.
+    // A proper fix would be to implement authentication and authorization,
+    // or remove this endpoint if it's only for debugging.
     return NextResponse.json({ success: true, groups });
   } catch (error) {
     console.error('Error fetching groups:', error);
