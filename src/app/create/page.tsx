@@ -6,19 +6,21 @@ import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import { LoginButton } from '@/components/LoginButton';
 import { useAuthContext } from '@/components/AuthProvider';
+import { useFetchWithAuth } from '@/lib/fetchWithAuth';
 
 export default function CreateGroup() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const { isAuthenticated, loading: authLoading } = useAuthContext();
+  const fetchWithAuth = useFetchWithAuth();
 
   const handleCreateGroup = async () => {
     try {
       setIsLoading(true);
       setError('');
       
-      const response = await fetch('/api/groups', {
+      const response = await fetchWithAuth('/api/groups', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
