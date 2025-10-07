@@ -15,11 +15,6 @@ export const useAuth = () => {
   useEffect(() => {
     // Handle redirect result for mobile devices
     const handleRedirectResult = async () => {
-      if (!auth) {
-        // Auth isn't initialized (server or misconfigured); skip redirect handling
-        return;
-      }
-
       try {
         const result = await getRedirectResult(auth);
         if (result) {
@@ -31,12 +26,6 @@ export const useAuth = () => {
     };
 
     handleRedirectResult();
-
-    if (!auth) {
-      // If auth isn't available, there is nothing to subscribe to.
-      setLoading(false);
-      return () => {};
-    }
 
     const unsubscribe = onAuthStateChange((user) => {
       setUser(user);
@@ -66,8 +55,8 @@ export const useAuth = () => {
   };
 
   const getIdToken = async () => {
-  if (!auth || !auth.currentUser) return null;
-  return auth.currentUser.getIdToken();
+    if (!auth.currentUser) return null;
+    return auth.currentUser.getIdToken();
   };
 
   return {

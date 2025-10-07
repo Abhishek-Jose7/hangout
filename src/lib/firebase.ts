@@ -110,28 +110,14 @@ export const signInWithGoogle = async (): Promise<void> => {
 }
 
 export const signOutUser = async (): Promise<void> => {
-  if (!auth) {
-    throw new Error('Firebase auth not initialized. Check your environment and ensure code runs in the browser.');
-  }
-
   return signOut(auth);
 };
 
 export const getCurrentUser = (): User | null => {
-  return auth ? auth.currentUser : null;
+  return auth.currentUser;
 };
 
 export const onAuthStateChange = (callback: (user: User | null) => void) => {
-  if (!auth) {
-    // If auth isn't available (server or misconfigured), invoke callback with null and return a no-op unsubscribe
-    try {
-      callback(null);
-    } catch (e) {
-      // swallow errors from callback when auth is absent
-    }
-  return () => {};
-  }
-
   return onAuthStateChanged(auth, callback);
 };
 
