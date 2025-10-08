@@ -173,6 +173,33 @@ Application data is stored in Supabase (PostgreSQL):
 
 The app is ready for deployment to platforms like Vercel, Netlify, or any Node.js hosting service.
 
+### **Vercel Deployment (Recommended)**
+
+1. **Connect your GitHub repository** to Vercel
+2. **Set Environment Variables** in Vercel Dashboard:
+   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+   - `CLERK_SECRET_KEY`
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `GOOGLE_GENERATIVE_AI_API_KEY`
+
+3. **Deploy automatically** on push to main branch
+
+### **Local Development**
+
+1. **Set up environment variables** in `.env.local`
+2. **Run the development server**:
+   ```bash
+   npm run dev
+   ```
+3. **Socket.io will work locally** for real-time features
+
+### **Important Notes**
+
+- **Real-time features** (Socket.io) work locally but are disabled on Vercel
+- **Supabase handles data persistence** across all environments
+- **Clerk handles authentication** across all environments
+
 ## 📚 Learn More
 
 - [Next.js Documentation](https://nextjs.org/docs)

@@ -45,9 +45,9 @@ export async function GET(
       );
     }
 
-    // Optional notify listeners with a fresh payload
+    // Optional notify listeners with a fresh payload (only if socket server is available)
     const io = getIO();
-    if (io) {
+    if (io && !process.env.VERCEL) {
       io.to(group.id).emit('group-updated', group);
     }
 

@@ -6,37 +6,53 @@ import { io, Socket } from 'socket.io-client';
 export function useSocket() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isSocketAvailable, setIsSocketAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const initSocket = async () => {
+    const checkSocketAvailability = async () => {
       try {
-        // Initialize socket connection
-        await fetch('/api/socket');
-        
+        const response = await fetch('/api/socket');
+        if (response.status === 404) {
+          // Socket.io not available (likely on Vercel)
+          setIsSocketAvailable(false);
+          setSocket(null);
+          setIsConnected(false);
+          return;
+        }
+
+        // Socket.io is available
+        setIsSocketAvailable(true);
         const socketInstance = io();
-        
+
         socketInstance.on('connect', () => {
           setIsConnected(true);
         });
-        
+
         socketInstance.on('disconnect', () => {
           setIsConnected(false);
         });
-        
+
         setSocket(socketInstance);
+
+        return () => {
+          socketInstance.disconnect();
+        };
       } catch (error) {
         console.error('Socket initialization error:', error);
+        setIsSocketAvailable(false);
+        setSocket(null);
+        setIsConnected(false);
       }
     };
-    
-    initSocket();
-    
+
+    checkSocketAvailability();
+
     return () => {
       if (socket) {
         socket.disconnect();
       }
     };
-  }, [setIsConnected, setSocket, socket]);
+  }, []);
 
-  return { socket, isConnected };
+  return { socket, isConnected, isSocketAvailable };
 }

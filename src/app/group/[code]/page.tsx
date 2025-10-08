@@ -47,7 +47,7 @@ export default function GroupPage() {
   const [voteCounts, setVoteCounts] = useState<Record<number, number>>({});
   const [finalisedIdx, setFinalisedIdx] = useState<number | null>(null);
   const [votedIdx, setVotedIdx] = useState<number | null>(null);
-  const { socket } = useSocket();
+  const { socket, isSocketAvailable } = useSocket();
   const { user } = useUser();
   // Authentication is handled by Clerk middleware in API routes
   const fetchWithAuth = useFetchWithAuth();
@@ -134,7 +134,7 @@ export default function GroupPage() {
 
   // Join socket room and subscribe to updates when connected/group ready
   useEffect(() => {
-    if (!socket || !group?.id) return;
+    if (!socket || !group?.id || !isSocketAvailable) return;
     socket.emit('join-group', group.id);
     const onGroupUpdated = (updatedGroup: Group) => {
       if (updatedGroup.code === code) setGroup(updatedGroup);
@@ -148,7 +148,26 @@ export default function GroupPage() {
       socket.off('group-updated', onGroupUpdated);
       socket.off('member-joined', onMemberJoined);
     };
-  }, [socket, group?.id, code]);
+  }, [socket, group?.id, code, isSocketAvailable]);
+
+  // Polling fallback for when Socket.io is not available
+  useEffect(() => {
+    if (isSocketAvailable === false && group?.id) {
+      const pollInterval = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/groups/${code}`);
+          const data = await response.json();
+          if (data.success && data.group) {
+            setGroup(data.group);
+          }
+        } catch (error) {
+          console.error('Polling error:', error);
+        }
+      }, 5000); // Poll every 5 seconds
+
+      return () => clearInterval(pollInterval);
+    }
+  }, [isSocketAvailable, group?.id, code]);
   
   const handleJoinGroup = async (e: React.FormEvent) => {
     e.preventDefault();

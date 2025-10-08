@@ -116,9 +116,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Emit member-joined with updated group payload
+    // Emit member-joined with updated group payload (only if socket server is available)
     const io = getIO();
-    if (io) {
+    if (io && !process.env.VERCEL) {
       const { data: updatedGroup, error: updatedGroupError } = await supabase
         .from('groups')
         .select(`

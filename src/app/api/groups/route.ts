@@ -51,9 +51,9 @@ export async function POST() {
 
     console.log('Group created successfully:', group);
 
-    // Emit group-updated for the new group room
+    // Emit group-updated for the new group room (only if socket server is available)
     const io = getIO();
-    if (io) {
+    if (io && !process.env.VERCEL) {
       io.to(group.id).emit('group-updated', group);
     }
 
