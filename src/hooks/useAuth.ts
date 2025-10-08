@@ -15,6 +15,8 @@ export const useAuth = () => {
   useEffect(() => {
     // Handle redirect result for mobile devices
     const handleRedirectResult = async () => {
+      if (!auth) return;
+
       try {
         const result = await getRedirectResult(auth);
         if (result) {
@@ -55,7 +57,7 @@ export const useAuth = () => {
   };
 
   const getIdToken = async () => {
-    if (!auth.currentUser) return null;
+    if (!auth || !auth.currentUser) return null;
     return auth.currentUser.getIdToken();
   };
 

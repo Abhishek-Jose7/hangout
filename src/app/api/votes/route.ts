@@ -1,34 +1,77 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { auth } from '@clerk/nextjs/server';
+import { supabase } from '@/lib/supabase';
+
+// Check if Supabase client is available
+if (!supabase) {
+  throw new Error('Supabase client not configured');
+}
 
 // POST: Cast or update a vote for an itinerary
 export async function POST(request: NextRequest) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const { groupId, memberId, itineraryIdx } = await request.json();
+
     if (!groupId || !memberId || itineraryIdx === undefined) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
+    // Check if Supabase client is available
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: 'Database not configured' },
+        { status: 500 }
+      );
+    }
+
     // Remove any previous vote by this member in this group
-    await prisma.itineraryVotes.deleteMany({
-      where: { groupId, memberId }
-    });
+    const { error: deleteError } = await supabase
+      .from('itinerary_votes')
+      .delete()
+      .eq('group_id', groupId)
+      .eq('member_id', memberId);
+
+    if (deleteError) {
+      console.error('Error deleting previous vote:', deleteError);
+      return NextResponse.json({ success: false, error: 'Failed to update vote' }, { status: 500 });
+    }
 
     // Add new vote
-    await prisma.itineraryVotes.create({
-      data: { groupId, memberId, itineraryIdx }
-    });
+    const { error: createError } = await supabase
+      .from('itinerary_votes')
+      .insert({
+        group_id: groupId,
+        member_id: memberId,
+        itinerary_idx: itineraryIdx
+      });
+
+    if (createError) {
+      console.error('Error creating vote:', createError);
+      return NextResponse.json({ success: false, error: 'Failed to create vote' }, { status: 500 });
+    }
 
     // Count votes for each itinerary
-    const votes = await prisma.itineraryVotes.findMany({ where: { groupId } });
+    const { data: votes, error: votesError } = await supabase
+      .from('itinerary_votes')
+      .select('itinerary_idx')
+      .eq('group_id', groupId);
+
+    if (votesError) {
+      console.error('Error fetching votes:', votesError);
+      return NextResponse.json({ success: false, error: 'Failed to fetch votes' }, { status: 500 });
+    }
+
     const voteCounts: Record<number, number> = {};
-    type Vote = {
-      itineraryIdx: number;
-      groupId: string;
-      memberId: string;
-    };
-    (votes as Vote[]).forEach((v) => {
-      voteCounts[v.itineraryIdx] = (voteCounts[v.itineraryIdx] || 0) + 1;
+    votes?.forEach((vote) => {
+      voteCounts[vote.itinerary_idx] = (voteCounts[vote.itinerary_idx] || 0) + 1;
     });
 
     // Find the itinerary with the most votes

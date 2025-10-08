@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { auth } from '@clerk/nextjs/server';
+import { supabase } from '@/lib/supabase';
 import { getIO } from '@/lib/io';
+
+// Check if Supabase client is available
+if (!supabase) {
+  throw new Error('Supabase client not configured');
+}
 
 // Get group by code
 export async function GET(
@@ -8,14 +14,36 @@ export async function GET(
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
-  const { code } = await params;
+    const { code } = await params;
 
-    const group = await prisma.group.findUnique({
-      where: { code },
-      include: { members: true }
-    });
+    // Check if user is authenticated
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
-    if (!group) {
+    // Check if Supabase client is available
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: 'Database not configured' },
+        { status: 500 }
+      );
+    }
+
+    // Get group from Supabase
+    const { data: group, error } = await supabase
+      .from('groups')
+      .select(`
+        *,
+        members (*)
+      `)
+      .eq('code', code)
+      .single();
+
+    if (error || !group) {
       return NextResponse.json(
         { success: false, error: 'Group not found' },
         { status: 404 }

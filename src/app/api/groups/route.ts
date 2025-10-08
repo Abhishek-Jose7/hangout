@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { auth } from '@clerk/nextjs/server';
+import { supabase } from '@/lib/supabase';
 import { randomBytes } from 'crypto';
 import { getIO } from '@/lib/io';
+
+// Check if Supabase client is available
+if (!supabase) {
+  throw new Error('Supabase client not configured');
+}
 
 // Generate a random 6-character code
 function generateGroupCode(): string {
@@ -12,34 +18,42 @@ function generateGroupCode(): string {
 export async function POST() {
   try {
     console.log('Creating new group...');
+
+    // Check if user is authenticated with Clerk
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const code = generateGroupCode();
     console.log('Generated code:', code);
-    // Retry loop: Prisma + PgBouncer can intermittently return
-    // PostgresError 42P05 "prepared statement \"sX\" already exists".
-    // Retry a few times before failing to reduce user-facing errors.
-    const maxAttempts = 3;
-    let attempt = 0;
-    let group = null;
-    const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
-    while (attempt < maxAttempts) {
-      try {
-        attempt++;
-        group = await prisma.group.create({ data: { code } });
-        break; // success
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err ?? '');
-        // If this is the prepared-statement already exists error (42P05), retry.
-        if (message.includes('prepared statement') || message.includes('42P05')) {
-          console.warn(`Prisma create attempt ${attempt} failed with prepared-statement error; retrying...`);
-          // small backoff
-          await sleep(150 * attempt);
-          continue;
-        }
-        // Non-retryable error, rethrow
-        throw err;
-      }
+
+    // Check if Supabase client is available
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: 'Database not configured' },
+        { status: 500 }
+      );
     }
-    if (!group) throw new Error('Failed to create group after retries');
+
+    // Create the group in Supabase
+    const { data: group, error } = await supabase
+      .from('groups')
+      .insert({ code })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating group:', error);
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 500 }
+      );
+    }
+
     console.log('Group created successfully:', group);
 
     // Emit group-updated for the new group room
@@ -47,7 +61,7 @@ export async function POST() {
     if (io) {
       io.to(group.id).emit('group-updated', group);
     }
-    
+
     return NextResponse.json({ success: true, group });
   } catch (error) {
     console.error('Error creating group:', error);
@@ -61,28 +75,29 @@ export async function POST() {
 // Get all groups (for testing purposes)
 export async function GET() {
   try {
-    const maxAttempts = 3;
-    let attempt = 0;
-    const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
-    let groups = null;
-    while (attempt < maxAttempts) {
-      try {
-        attempt++;
-        groups = await prisma.group.findMany({ include: { members: true } });
-        break;
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err ?? '');
-        if (message.includes('prepared statement') || message.includes('42P05')) {
-          console.warn(`Prisma findMany attempt ${attempt} failed with prepared-statement error; retrying...`);
-          await sleep(150 * attempt);
-          continue;
-        }
-        throw err;
-      }
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: 'Database not configured' },
+        { status: 500 }
+      );
     }
-    if (!groups) throw new Error('Failed to fetch groups after retries');
 
-    return NextResponse.json({ success: true, groups });
+    const { data: groups, error } = await supabase
+      .from('groups')
+      .select(`
+        *,
+        members (*)
+      `);
+
+    if (error) {
+      console.error('Error fetching groups:', error);
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true, groups: groups || [] });
   } catch (error) {
     console.error('Error fetching groups:', error);
     return NextResponse.json(

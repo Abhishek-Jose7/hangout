@@ -14,9 +14,8 @@ export default function Home() {
               Start a new group and invite others to join with your unique code.
             </p>
             <Link href="/create" className="block">
-              <Button 
-                fullWidth 
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-lg py-3"
+              <Button
+                fullWidth
               >
                 Create Group
               </Button>

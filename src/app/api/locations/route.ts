@@ -1,25 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { auth } from '@clerk/nextjs/server';
+import { supabase } from '@/lib/supabase';
 import { findOptimalLocations } from '@/lib/gemini';
+
+// Check if Supabase client is available
+if (!supabase) {
+  throw new Error('Supabase client not configured');
+}
 
 export async function GET(request: NextRequest) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const url = new URL(request.url);
     const groupId = url.searchParams.get('groupId');
-    
+
     if (!groupId) {
       return NextResponse.json(
         { success: false, error: 'Group ID is required' },
         { status: 400 }
       );
     }
-    
-    // Get all members of the group
-    const members = await prisma.member.findMany({
-      where: { groupId }
-    });
-    
-    if (members.length === 0) {
+
+    // Check if Supabase client is available
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: 'Database not configured' },
+        { status: 500 }
+      );
+    }
+
+    // Get all members of the group from Supabase
+    const { data: members, error } = await supabase
+      .from('members')
+      .select('*')
+      .eq('group_id', groupId);
+
+    if (error) {
+      console.error('Error fetching members:', error);
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch group members' },
+        { status: 500 }
+      );
+    }
+
+    if (!members || members.length === 0) {
       return NextResponse.json(
         { success: false, error: 'No members found in this group' },
         { status: 404 }
@@ -27,14 +58,12 @@ export async function GET(request: NextRequest) {
     }
     
     // Format members for the Gemini API
-    const formattedMembers = members.map((member: { name: string; location: string; budget: number; moodTags: string | string[] }) => ({
+    const formattedMembers = members.map((member: { name: string; location: string; budget: number; mood_tags: string }) => ({
       name: member.name,
       location: member.location,
       budget: member.budget,
-      moodTags: Array.isArray(member.moodTags)
-        ? member.moodTags
-        : typeof member.moodTags === 'string' && member.moodTags.length > 0
-        ? member.moodTags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
+      moodTags: member.mood_tags && member.mood_tags.length > 0
+        ? member.mood_tags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
         : []
     }));
     

@@ -110,14 +110,21 @@ export const signInWithGoogle = async (): Promise<void> => {
 }
 
 export const signOutUser = async (): Promise<void> => {
+  if (!auth) {
+    throw new Error('Firebase auth not initialized. Check your environment variables.');
+  }
   return signOut(auth);
 };
 
 export const getCurrentUser = (): User | null => {
-  return auth.currentUser;
+  return auth?.currentUser || null;
 };
 
 export const onAuthStateChange = (callback: (user: User | null) => void) => {
+  if (!auth) {
+    console.warn('Firebase auth not initialized. Auth state changes will not be monitored.');
+    return () => {}; // Return empty cleanup function
+  }
   return onAuthStateChanged(auth, callback);
 };
 

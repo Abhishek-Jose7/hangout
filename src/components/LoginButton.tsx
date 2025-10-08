@@ -1,76 +1,30 @@
 "use client";
 
-import React, { useState } from 'react';
-import Image from 'next/image';
-import { useAuthContext } from './AuthProvider';
-import Button from './ui/Button';
+import React from 'react';
+import { SignInButton, SignUpButton, UserButton, SignedIn, SignedOut } from '@clerk/nextjs';
 
 interface LoginButtonProps {
-  onLoginSuccess?: () => void;
   className?: string;
 }
 
-export const LoginButton: React.FC<LoginButtonProps> = ({ onLoginSuccess, className }) => {
-  const { signIn, signOut, isAuthenticated, user } = useAuthContext();
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleSignIn = async () => {
-    try {
-      setIsLoading(true);
-  // Redirect-based sign-in will navigate away. We set loading=true and let the browser redirect.
-  await signIn();
-  onLoginSuccess?.();
-    } catch (error) {
-      console.error('Login failed:', error);
-  // Stop loading on error
-  setIsLoading(false);
-    }
-  };
-
-  const handleSignOut = async () => {
-    try {
-      setIsLoading(true);
-      await signOut();
-    } catch (error) {
-      console.error('Logout failed:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  if (isAuthenticated && user) {
-    return (
-      <div className={`flex items-center gap-4 ${className}`}>
-        <div className="flex items-center gap-2">
-          {user.photoURL && (
-            <Image 
-              src={user.photoURL} 
-              alt="Profile" 
-              width={32}
-              height={32}
-              className="w-8 h-8 rounded-full"
-            />
-          )}
-          <span className="text-sm font-medium">{user.displayName || user.email}</span>
-        </div>
-        <Button 
-          onClick={handleSignOut}
-          disabled={isLoading}
-          className="bg-red-600 hover:bg-red-700"
-        >
-          {isLoading ? 'Signing out...' : 'Sign Out'}
-        </Button>
-      </div>
-    );
-  }
-
+export const LoginButton: React.FC<LoginButtonProps> = ({ className }) => {
   return (
-    <Button 
-      onClick={handleSignIn}
-      disabled={isLoading}
-      className={`bg-blue-600 hover:bg-blue-700 ${className}`}
-    >
-      {isLoading ? 'Signing in...' : 'Sign in with Google'}
-    </Button>
+    <div className={`flex gap-2 ${className}`}>
+      <SignedOut>
+        <SignInButton mode="modal">
+          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-semibold transition-all duration-200 shadow-md hover:shadow-lg">
+            Sign In
+          </button>
+        </SignInButton>
+        <SignUpButton mode="modal">
+          <button className="border-2 border-gray-300 bg-transparent text-gray-700 hover:bg-gray-50 hover:border-blue-600 px-4 py-2 rounded-xl font-semibold transition-all duration-200">
+            Sign Up
+          </button>
+        </SignUpButton>
+      </SignedOut>
+      <SignedIn>
+        <UserButton afterSignOutUrl="/" />
+      </SignedIn>
+    </div>
   );
 };

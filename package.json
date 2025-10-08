@@ -3,23 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "postinstall": "prisma generate",
-    "prisma:generate": "prisma generate",
-    "prisma:deploy": "prisma migrate deploy"
+    "dev": "npx next dev",
+    "build": "npx next build",
+    "start": "npx next start",
+    "lint": "npx eslint"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.33.3",
     "@google/generative-ai": "^0.24.1",
-    "@prisma/client": "^6.14.0",
-  "firebase-admin": "^11.11.0",
+    "@supabase/supabase-js": "^2.74.0",
     "firebase": "^12.1.0",
+    "firebase-admin": "^11.11.0",
     "leaflet": "^1.9.4",
     "next": "15.5.0",
     "postgres": "^3.4.7",
-    "prisma": "^6.14.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-leaflet": "^5.0.0",
@@ -36,6 +33,6 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "5.9.3"
   }
 }
