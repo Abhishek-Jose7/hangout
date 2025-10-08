@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import AuthButtons from './SignInButton';
+import { useUser } from '@clerk/nextjs';
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user } = useUser();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -34,23 +36,28 @@ export default function Navbar() {
             </Link>
           </div>
 
-          {/* Navigation Links */}
-          <div className="hidden md:block">
-            <div className="ml-10 flex items-baseline space-x-8">
-              <Link href="/" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
-                Home
-              </Link>
-              <Link href="#features" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
-                Features
-              </Link>
-              <Link href="#how-it-works" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
-                How It Works
-              </Link>
-              <Link href="#contact" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
-                Contact
-              </Link>
-            </div>
-          </div>
+                  {/* Navigation Links */}
+                  <div className="hidden md:block">
+                    <div className="ml-10 flex items-baseline space-x-8">
+                      <Link href="/" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
+                        Home
+                      </Link>
+                      {user && (
+                        <Link href="/dashboard" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
+                          My Groups
+                        </Link>
+                      )}
+                      <Link href="#features" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
+                        Features
+                      </Link>
+                      <Link href="#how-it-works" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
+                        How It Works
+                      </Link>
+                      <Link href="#contact" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
+                        Contact
+                      </Link>
+                    </div>
+                  </div>
 
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center">
@@ -78,41 +85,50 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile menu */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            <Link
-              href="/"
-              className="text-gray-700 hover:text-blue-600 block px-3 py-2 text-base font-medium transition-colors"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Home
-            </Link>
-            <Link
-              href="#features"
-              className="text-gray-700 hover:text-blue-600 block px-3 py-2 text-base font-medium transition-colors"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Features
-            </Link>
-            <Link
-              href="#how-it-works"
-              className="text-gray-700 hover:text-blue-600 block px-3 py-2 text-base font-medium transition-colors"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              How It Works
-            </Link>
-            <Link
-              href="#contact"
-              className="text-gray-700 hover:text-blue-600 block px-3 py-2 text-base font-medium transition-colors"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Contact
-            </Link>
-          </div>
-        </div>
-      )}
+             {/* Mobile menu */}
+             {isMobileMenuOpen && (
+               <div className="md:hidden bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm">
+                 <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                   <Link
+                     href="/"
+                     className="text-gray-700 hover:text-blue-600 block px-3 py-2 text-base font-medium transition-colors"
+                     onClick={() => setIsMobileMenuOpen(false)}
+                   >
+                     Home
+                   </Link>
+                   {user && (
+                     <Link
+                       href="/dashboard"
+                       className="text-gray-700 hover:text-blue-600 block px-3 py-2 text-base font-medium transition-colors"
+                       onClick={() => setIsMobileMenuOpen(false)}
+                     >
+                       My Groups
+                     </Link>
+                   )}
+                   <Link
+                     href="#features"
+                     className="text-gray-700 hover:text-blue-600 block px-3 py-2 text-base font-medium transition-colors"
+                     onClick={() => setIsMobileMenuOpen(false)}
+                   >
+                     Features
+                   </Link>
+                   <Link
+                     href="#how-it-works"
+                     className="text-gray-700 hover:text-blue-600 block px-3 py-2 text-base font-medium transition-colors"
+                     onClick={() => setIsMobileMenuOpen(false)}
+                   >
+                     How It Works
+                   </Link>
+                   <Link
+                     href="#contact"
+                     className="text-gray-700 hover:text-blue-600 block px-3 py-2 text-base font-medium transition-colors"
+                     onClick={() => setIsMobileMenuOpen(false)}
+                   >
+                     Contact
+                   </Link>
+                 </div>
+               </div>
+             )}
     </nav>
   );
 }

@@ -56,31 +56,72 @@ export default function GroupPage() {
   // Authentication is handled by Clerk middleware in API routes
   const fetchWithAuth = useFetchWithAuth();
 
-  // Helper to get current memberId (could be from session, localStorage, etc.)
-  const memberId = typeof window !== 'undefined' ? localStorage.getItem('memberId') : null;
+  // Helper to get current memberId and manage user session
+  const [memberId, setMemberId] = useState<string | null>(null);
+
+  // Get the group code from params
+  const params = useParams();
+  const code = params?.code ? String(params.code) : '';
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Try to restore session from localStorage
+      const storedSession = localStorage.getItem('userSession');
+      const storedMemberId = localStorage.getItem('memberId');
+
+      if (storedSession) {
+        try {
+          const session = JSON.parse(storedSession);
+          // Only restore if it's for the current group
+          if (session.groupCode === code) {
+            setMemberId(session.memberId);
+            setHasJoined(true);
+          }
+        } catch (error) {
+          console.error('Error parsing stored session:', error);
+        }
+      } else if (storedMemberId) {
+        // Fallback to old method for backward compatibility
+        setMemberId(storedMemberId);
+      }
+    }
+  }, [code]);
 
   // Voting handler
   const handleVote = async (idx: number) => {
-    if (!group?.id || !memberId) return;
-    const res = await fetch('/api/votes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ groupId: group.id, memberId, itineraryIdx: idx })
-    });
-    const data = await res.json();
-    if (data.success) {
-      setVoteCounts(data.voteCounts);
-      setFinalisedIdx(data.finalisedIdx);
-      setVotedIdx(idx);
+    if (!group?.id || !memberId) {
+      console.error('Cannot vote: missing group ID or member ID');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/votes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupId: group.id, memberId, itineraryIdx: idx })
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        setVoteCounts(data.voteCounts);
+        setFinalisedIdx(data.finalisedIdx);
+        setVotedIdx(idx);
+        console.log('Vote cast successfully:', data);
+      } else {
+        console.error('Vote failed:', data.error);
+      }
+    } catch (error) {
+      console.error('Error voting:', error);
     }
   };
-  const params = useParams();
-  const code = params?.code ? String(params.code) : '';
-  
   const [group, setGroup] = useState<Group | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
-  
+
   const [name, setName] = useState<string>('');
   const [location, setLocation] = useState<string>('');
   const [budget, setBudget] = useState<string>('');
@@ -89,10 +130,11 @@ export default function GroupPage() {
   const [joinError, setJoinError] = useState<string>('');
   const [joinSuccess, setJoinSuccess] = useState<boolean>(false);
   const [hasJoined, setHasJoined] = useState<boolean>(false);
-  
+
   const [locations, setLocations] = useState<Location[]>([]);
   const [isLoadingLocations, setIsLoadingLocations] = useState<boolean>(false);
-  
+  const [isGeneratingLocations, setIsGeneratingLocations] = useState<boolean>(false);
+
   // Fetch group data
   useEffect(() => {
     const fetchGroup = async () => {
@@ -113,15 +155,24 @@ export default function GroupPage() {
         console.log("Group data fetched:", data.group);
         setGroup(data.group);
         
-         // Check if current user is already a member
-         if (data.group.members && data.group.members.length > 0 && user?.id) {
-           const currentUserMember = data.group.members.find((member: Member) => member.clerkUserId === user.id);
-           if (currentUserMember) {
-             setHasJoined(true);
-             localStorage.setItem('memberId', currentUserMember.id);
-             console.log('User is already a member:', currentUserMember);
-           }
-         }
+          // Check if current user is already a member
+          if (data.group.members && data.group.members.length > 0 && user?.id) {
+            const currentUserMember = data.group.members.find((member: Member) => member.clerkUserId === user.id);
+            if (currentUserMember) {
+              setHasJoined(true);
+              setMemberId(currentUserMember.id);
+
+              // Store session for this group
+              const session = {
+                memberId: currentUserMember.id,
+                groupCode: code,
+                joinedAt: new Date().toISOString()
+              };
+              localStorage.setItem('userSession', JSON.stringify(session));
+
+              console.log('User is already a member:', currentUserMember);
+            }
+          }
       } catch (err) {
         console.error('Error fetching group:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch group');
@@ -133,8 +184,8 @@ export default function GroupPage() {
     if (code) {
       fetchGroup();
     }
-    
-  }, [code]);
+
+  }, [code, user?.id]);
 
   // Real-time updates using Socket.io or Supabase real-time
   useEffect(() => {
@@ -176,7 +227,7 @@ export default function GroupPage() {
         unsubscribeFromGroup(group.id);
       };
     }
-  }, [socket, group?.id, code, isSocketAvailable]); // Removed subscribeToGroup and unsubscribeFromGroup from dependencies
+  }, [socket, group?.id, code, isSocketAvailable, subscribeToGroup, unsubscribeFromGroup]);
   
   const handleJoinGroup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,9 +280,18 @@ export default function GroupPage() {
         throw new Error(data.error || 'Failed to join group');
       }
       
-      // Persist memberId for later voting
+      // Persist memberId and session for later voting
       if (typeof window !== 'undefined' && data.member?.id) {
         localStorage.setItem('memberId', data.member.id);
+        setMemberId(data.member.id);
+
+        // Store session for this group
+        const session = {
+          memberId: data.member.id,
+          groupCode: code,
+          joinedAt: new Date().toISOString()
+        };
+        localStorage.setItem('userSession', JSON.stringify(session));
       }
 
              console.log("Successfully joined group:", data);
@@ -265,14 +325,17 @@ export default function GroupPage() {
   };
   
          const findOptimalLocations = async () => {
-           if (!group?.id) return;
-           
+           if (!group?.id || isGeneratingLocations) return;
+
            try {
              setIsLoadingLocations(true);
+             setIsGeneratingLocations(true);
              setError(''); // Clear any previous errors
+             console.log('Starting location generation for group:', group.id);
+
              const response = await fetch(`/api/locations?groupId=${group.id}`);
              const data = await response.json();
-             
+
              if (!data.success) {
                if (data.quotaExceeded) {
                  setError('AI service quota exceeded. Please try again later or contact support.');
@@ -282,15 +345,15 @@ export default function GroupPage() {
                setLocations([]);
                return;
              }
-             
+
              if (!data.locations || data.locations.length === 0) {
                setError('No locations found. Please try again.');
                setLocations([]);
                return;
              }
-             
+
              setLocations(data.locations || []);
-             
+
              // Show success message if locations were generated (not cached)
              if (!data.cached) {
                console.log('New locations generated for group');
@@ -302,6 +365,7 @@ export default function GroupPage() {
              setLocations([]);
            } finally {
              setIsLoadingLocations(false);
+             setIsGeneratingLocations(false);
            }
          };
   
@@ -336,13 +400,13 @@ export default function GroupPage() {
   }
   
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+    <main className="min-h-screen bg-gray-50">
       {/* Header Section */}
       <div className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4">
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-3 rounded-xl">
+              <div className="bg-blue-600 p-3 rounded-xl">
                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
@@ -371,11 +435,11 @@ export default function GroupPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Members & Join Form */}
+          {/* Left Column - Members */}
           <div className="lg:col-span-1 space-y-6">
             {/* Members Card */}
-            <div className={`bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden ${styles.animateFadeInUp} ${styles.hoverLift}`}>
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+            <div className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden ${styles.animateFadeInUp}`}>
+              <div className="bg-blue-600 px-6 py-4">
                 <h2 className="text-xl font-semibold text-white flex items-center">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
@@ -388,7 +452,7 @@ export default function GroupPage() {
                   <div className="space-y-4">
                     {group.members.map((member) => (
                       <div key={member.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white font-semibold">
+                        <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
                           {member.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -409,13 +473,13 @@ export default function GroupPage() {
                     <p className="text-gray-500 text-sm">No members have joined yet</p>
                   </div>
                 )}
-                
+
                 {group?.members && group.members.length >= 2 && (
                   <div className="mt-6 space-y-3">
-                    <Button 
+                    <Button
                       onClick={findOptimalLocations}
-                      disabled={isLoadingLocations}
-                      className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
+                      disabled={isLoadingLocations || isGeneratingLocations}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
                     >
                       {isLoadingLocations ? (
                         <div className="flex items-center justify-center">
@@ -432,9 +496,9 @@ export default function GroupPage() {
                         </div>
                       )}
                     </Button>
-                    
+
                     {locations.length > 0 && (
-                      <Button 
+                      <Button
                         onClick={async () => {
                           try {
                             const response = await fetch(`/api/locations/clear?groupId=${group.id}`, { method: 'DELETE' });
@@ -457,10 +521,13 @@ export default function GroupPage() {
                 )}
               </div>
             </div>
+          </div>
 
+          {/* Right Column - Join Form and Itineraries */}
+          <div className="lg:col-span-2 space-y-6">
             {/* Join Form Card */}
-            <div className={`bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden ${styles.animateSlideInRight} ${styles.hoverLift}`}>
-              <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4">
+            <div className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden ${styles.animateSlideInRight}`}>
+              <div className="bg-blue-600 px-6 py-4">
                 <h2 className="text-xl font-semibold text-white flex items-center">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -469,9 +536,9 @@ export default function GroupPage() {
                 </h2>
               </div>
               <div className="p-6">
-            
+
                 {hasJoined ? (
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 text-green-700 px-4 py-4 rounded-xl mb-6">
+                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-4 rounded-xl mb-6">
                     <div className="flex items-center">
                       <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center mr-3">
                         <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -516,7 +583,7 @@ export default function GroupPage() {
                           fullWidth
                           required
                           disabled={isJoining}
-                          className="rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500"
+                          className="rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                         />
                       </div>
                       <div>
@@ -528,7 +595,7 @@ export default function GroupPage() {
                           fullWidth
                           required
                           disabled={isJoining}
-                          className="rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500"
+                          className="rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                         />
                       </div>
                       <div>
@@ -543,7 +610,7 @@ export default function GroupPage() {
                           fullWidth
                           required
                           disabled={isJoining}
-                          className="rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500"
+                          className="rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                         />
                       </div>
                       <div>
@@ -553,10 +620,10 @@ export default function GroupPage() {
                             <button
                               type="button"
                               key={tag}
-                              className={`px-3 py-2 rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-400 ${
-                                moodTags.includes(tag) 
-                                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white border-purple-600 shadow-lg transform scale-105' 
-                                  : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-purple-50 hover:border-purple-300'
+                              className={`px-3 py-2 rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                                moodTags.includes(tag)
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                  : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-blue-50 hover:border-blue-400'
                               }`}
                               onClick={() => {
                                 if (!isJoining) {
@@ -574,14 +641,14 @@ export default function GroupPage() {
                           ))}
                         </div>
                       </div>
-                      <Button 
-                        type="submit" 
-                        fullWidth 
+                      <Button
+                        type="submit"
+                        fullWidth
                         disabled={isJoining || !name.trim() || !location.trim() || !budget.trim() || moodTags.length === 0}
-                        className={`w-full py-3 rounded-xl font-semibold transition-all duration-200 ${
+                        className={`w-full py-3 rounded-lg font-semibold transition-all duration-200 ${
                           isJoining || !name.trim() || !location.trim() || !budget.trim() || moodTags.length === 0
-                            ? 'opacity-60 cursor-not-allowed bg-gray-400' 
-                            : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl'
+                            ? 'opacity-60 cursor-not-allowed bg-gray-400'
+                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md'
                         }`}
                       >
                         {isJoining ? (
@@ -598,30 +665,27 @@ export default function GroupPage() {
                 )}
               </div>
             </div>
-          </div>
 
-          {/* Right Column - Itineraries */}
-          <div className="lg:col-span-2">
-            {/* Empty State */}
+            {/* Itineraries Section */}
             {locations.length === 0 && group?.members && group.members.length >= 2 && (
-              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="p-12 text-center">
-                  <div className="w-24 h-24 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
                     <svg className="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   </div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">Ready to Find Locations?</h3>
-                  <p className="text-gray-600 mb-6">Click the &quot;Find Optimal Locations&quot; button to get AI-powered suggestions for your group.</p>
+                  <p className="text-gray-600 mb-6">Click the &ldquo;Find Optimal Locations&rdquo; button to get AI-powered suggestions for your group.</p>
                 </div>
               </div>
             )}
 
-            {/* Optimal Locations */}
+            {/* Optimal Locations - Show only winning itinerary when decided */}
             {locations.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-                <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-8 py-6">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="bg-blue-600 px-8 py-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <h2 className="text-2xl font-bold text-white flex items-center">
@@ -629,11 +693,16 @@ export default function GroupPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
-                        Optimal Meetup Locations
+                        {finalisedIdx !== null ? 'Final Meetup Location' : 'Vote for Meetup Locations'}
                       </h2>
-                      <p className="text-green-100 mt-1">AI-powered suggestions based on your group&apos;s preferences</p>
+                      <p className="text-blue-100 mt-1">
+                        {finalisedIdx !== null
+                          ? 'The group has decided on this location!'
+                          : 'AI-powered suggestions based on your group\'s preferences'
+                        }
+                      </p>
                     </div>
-                    <div className="flex items-center text-green-100 text-sm">
+                    <div className="flex items-center text-blue-100 text-sm">
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
@@ -642,146 +711,233 @@ export default function GroupPage() {
                   </div>
                 </div>
                 <div className="p-8">
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                    {locations.map((location, index) => (
-                      <div key={index} className={`group relative bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border-2 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${styles.cardEnter} ${
-                        finalisedIdx === index 
-                          ? 'border-green-500 ring-4 ring-green-200' 
-                          : 'border-gray-200 hover:border-blue-300'
-                      }`}>
-                        {/* Finalised Badge */}
-                        {finalisedIdx === index && (
-                          <div className="absolute -top-3 -right-3 z-10">
-                            <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center">
-                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              <span className="text-sm font-semibold">Finalised Plan</span>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Header */}
-                        <div className="p-6 pb-4">
-                          <div className="flex items-start justify-between mb-4">
-                            <div className="flex-1">
-                              <h3 className="text-2xl font-bold text-gray-900 mb-2">{location.name}</h3>
-                              <p className="text-gray-600 leading-relaxed">{location.description}</p>
-                            </div>
-                            <div className="ml-4 text-right">
-                              <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-2 rounded-xl shadow-lg">
-                                <p className="text-sm font-medium">Estimated Cost</p>
-                                <p className="text-xl font-bold">₹{location.estimatedCost.toFixed(0)}</p>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Vote Section */}
-                          <div className="flex items-center justify-between mb-6 p-4 bg-gray-50 rounded-xl">
-                            <div className="flex items-center space-x-4">
-                              <button
-                                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
-                                  votedIdx === index 
-                                    ? 'bg-green-500 text-white cursor-not-allowed' 
-                                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl'
-                                }`}
-                                disabled={votedIdx === index}
-                                onClick={() => handleVote(index)}
-                              >
-                                {votedIdx === index ? (
-                                  <div className="flex items-center">
-                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    Voted
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center">
-                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
-                                    </svg>
-                                    Vote for this Plan
-                                  </div>
-                                )}
-                              </button>
-                              <div className="flex items-center text-gray-600">
-                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                </svg>
-                                <span className="font-semibold">{voteCounts[index] || 0} votes</span>
-                              </div>
-                            </div>
-                          </div>
+                  {finalisedIdx !== null ? (
+                    /* Show only the winning itinerary */
+                    <div className="max-w-2xl mx-auto">
+                      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border-2 border-green-200 p-8 text-center mb-8">
+                        <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
                         </div>
+                        <h3 className="text-2xl font-bold text-green-800 mb-2">Location Decided!</h3>
+                        <p className="text-green-600">
+                          The group has chosen <span className="font-semibold">{locations[finalisedIdx]?.name}</span> as the meetup location.
+                        </p>
+                      </div>
 
-                        {/* Itinerary Items */}
-                        <div className="px-6 pb-6">
-                          <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                            <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                            </svg>
-                            Suggested Itinerary
-                          </h4>
-                          <div className="space-y-4">
-                            {(location.itineraryDetails || []).map((item: ItineraryDetail, i: number) => (
-                              <div key={i} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                                <div className="flex items-start space-x-4">
-                                  <div className="flex-shrink-0">
-                                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                                      {i + 1}
-                                    </div>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <h5 className="text-lg font-semibold text-gray-900 mb-2">{item.name}</h5>
-                                    <p className="text-gray-600 mb-3">{item.address}</p>
-                                    
-                                    <div className="flex flex-wrap items-center gap-4 mb-3">
-                                      {item.rating !== null && (
-                                        <div className="flex items-center text-yellow-600">
-                                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                          </svg>
-                                          <span className="text-sm font-medium">{item.rating}</span>
-                                        </div>
-                                      )}
-                                      {item.priceLevel !== null && (
-                                        <div className="flex items-center text-green-600">
-                                          <span className="text-sm font-medium">
-                                            Price: {'₹'.repeat(item.priceLevel ?? 0)}
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
+                      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                        <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
+                          <h3 className="text-xl font-bold text-white">{locations[finalisedIdx]?.name}</h3>
+                        </div>
+                        <div className="p-6">
+                          <p className="text-gray-600 mb-6 leading-relaxed">{locations[finalisedIdx]?.description}</p>
 
-                                    {item.photos && item.photos.length > 0 && (
-                                      <div className="flex gap-2 mt-3">
-                                        {item.photos.slice(0, 3).map((photoUrl: string, idx: number) => (
-                                          <div key={idx} className="relative">
-                                            <Image 
-                                              src={photoUrl} 
-                                              alt="Place photo" 
-                                              width={80} 
-                                              height={80} 
-                                              className="w-20 h-20 object-cover rounded-lg shadow-sm hover:shadow-md transition-shadow" 
-                                            />
-                                            {idx === 2 && item.photos.length > 3 && (
-                                              <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
-                                                <span className="text-white text-xs font-semibold">+{item.photos.length - 3}</span>
-                                              </div>
-                                            )}
-                                          </div>
-                                        ))}
+                          <div className="bg-gray-50 rounded-lg p-6 mb-6">
+                            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                              <svg className="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                              </svg>
+                              Meetup Itinerary
+                            </h4>
+                            <div className="space-y-4">
+                              {(locations[finalisedIdx]?.itineraryDetails || []).map((item: ItineraryDetail, i: number) => (
+                                <div key={i} className="bg-white rounded-lg p-4 border border-gray-200">
+                                  <div className="flex items-start space-x-4">
+                                    <div className="flex-shrink-0">
+                                      <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                        {i + 1}
                                       </div>
-                                    )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <h5 className="text-lg font-semibold text-gray-900 mb-2">{item.name}</h5>
+                                      <p className="text-gray-600 mb-3">{item.address}</p>
+
+                                      <div className="flex flex-wrap items-center gap-4 mb-3">
+                                        {item.rating !== null && (
+                                          <div className="flex items-center text-yellow-600">
+                                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                            </svg>
+                                            <span className="text-sm font-medium">{item.rating}</span>
+                                          </div>
+                                        )}
+                                        {item.priceLevel !== null && (
+                                          <div className="flex items-center text-green-600">
+                                            <span className="text-sm font-medium">
+                                              Price: {'₹'.repeat(item.priceLevel ?? 0)}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {item.photos && item.photos.length > 0 && (
+                                        <div className="flex gap-2 mt-3">
+                                          {item.photos.slice(0, 3).map((photoUrl: string, idx: number) => (
+                                            <div key={idx} className="relative">
+                                              <Image
+                                                src={photoUrl}
+                                                alt="Place photo"
+                                                width={80}
+                                                height={80}
+                                                className="w-20 h-20 object-cover rounded-lg shadow-sm"
+                                              />
+                                              {idx === 2 && item.photos.length > 3 && (
+                                                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
+                                                  <span className="text-white text-xs font-semibold">+{item.photos.length - 3}</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="text-center">
+                            <div className="inline-flex items-center px-6 py-3 bg-green-100 rounded-full">
+                              <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                              </svg>
+                              <span className="text-green-800 font-semibold">
+                                Total Cost: ₹{locations[finalisedIdx]?.estimatedCost.toFixed(0)}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ) : (
+                    /* Show all itineraries for voting when no winner yet */
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      {locations.map((location, index) => (
+                        <div key={index} className="group relative bg-white rounded-xl shadow-sm border border-gray-200 transition-all duration-300 hover:shadow-md">
+                          {/* Header */}
+                          <div className="p-6 pb-4">
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex-1">
+                                <h3 className="text-xl font-bold text-gray-900 mb-2">{location.name}</h3>
+                                <p className="text-gray-600 leading-relaxed">{location.description}</p>
+                              </div>
+                              <div className="ml-4 text-right">
+                                <div className="bg-green-500 text-white px-3 py-2 rounded-lg shadow-sm">
+                                  <p className="text-sm font-medium">Cost</p>
+                                  <p className="text-lg font-bold">₹{location.estimatedCost.toFixed(0)}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Vote Section */}
+                            <div className="flex items-center justify-between mb-6 p-4 bg-gray-50 rounded-lg">
+                              <div className="flex items-center space-x-4">
+                                <button
+                                  className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${
+                                    votedIdx === index
+                                      ? 'bg-green-500 text-white cursor-not-allowed'
+                                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md'
+                                  }`}
+                                  disabled={votedIdx === index}
+                                  onClick={() => handleVote(index)}
+                                >
+                                  {votedIdx === index ? (
+                                    <div className="flex items-center">
+                                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                      Voted
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center">
+                                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
+                                      </svg>
+                                      Vote
+                                    </div>
+                                  )}
+                                </button>
+                                <div className="flex items-center text-gray-600">
+                                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                  </svg>
+                                  <span className="font-semibold">{voteCounts[index] || 0} votes</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Itinerary Items */}
+                          <div className="px-6 pb-6">
+                            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                              <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                              </svg>
+                              Suggested Itinerary
+                            </h4>
+                            <div className="space-y-4">
+                              {(location.itineraryDetails || []).map((item: ItineraryDetail, i: number) => (
+                                <div key={i} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                  <div className="flex items-start space-x-4">
+                                    <div className="flex-shrink-0">
+                                      <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                        {i + 1}
+                                      </div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <h5 className="text-lg font-semibold text-gray-900 mb-2">{item.name}</h5>
+                                      <p className="text-gray-600 mb-3">{item.address}</p>
+
+                                      <div className="flex flex-wrap items-center gap-4 mb-3">
+                                        {item.rating !== null && (
+                                          <div className="flex items-center text-yellow-600">
+                                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                            </svg>
+                                            <span className="text-sm font-medium">{item.rating}</span>
+                                          </div>
+                                        )}
+                                        {item.priceLevel !== null && (
+                                          <div className="flex items-center text-green-600">
+                                            <span className="text-sm font-medium">
+                                              Price: {'₹'.repeat(item.priceLevel ?? 0)}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {item.photos && item.photos.length > 0 && (
+                                        <div className="flex gap-2 mt-3">
+                                          {item.photos.slice(0, 3).map((photoUrl: string, idx: number) => (
+                                            <div key={idx} className="relative">
+                                              <Image
+                                                src={photoUrl}
+                                                alt="Place photo"
+                                                width={80}
+                                                height={80}
+                                                className="w-20 h-20 object-cover rounded-lg shadow-sm"
+                                              />
+                                              {idx === 2 && item.photos.length > 3 && (
+                                                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
+                                                  <span className="text-white text-xs font-semibold">+{item.photos.length - 3}</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

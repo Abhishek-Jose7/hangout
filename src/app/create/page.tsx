@@ -18,20 +18,20 @@ export default function CreateGroup() {
     try {
       setIsLoading(true);
       setError('');
-
+      
       const response = await fetch('/api/groups', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
       });
-
+      
       const data = await response.json();
-
+      
       if (!data.success) {
         throw new Error(data.error || 'Failed to create group');
       }
-
+      
       // Navigate to the group page with the new group code
       router.push(`/group/${data.group.code}`);
     } catch (err) {
@@ -55,29 +55,29 @@ export default function CreateGroup() {
             <p className="text-lg text-gray-600">
               Start planning your next hangout by creating a group. Share the unique code with friends to join.
             </p>
-          </div>
-
+        </div>
+        
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 sm:p-12">
             <div className="text-center mb-8">
               <div className="text-6xl mb-4">🚀</div>
               <p className="text-gray-600">
                 Click the button below to create a new group. You will receive a unique code that others can use to join your group.
               </p>
-            </div>
-
+          </div>
+            
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
                 <div className="flex items-center">
                   <span className="text-red-500 mr-2">⚠️</span>
-                  {error}
+                {error}
                 </div>
               </div>
             )}
-
+            
             <div className="text-center">
-              <Button
-                onClick={handleCreateGroup}
-                disabled={isLoading}
+            <Button 
+              onClick={handleCreateGroup} 
+              disabled={isLoading}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl min-w-[200px]"
               >
                 {isLoading ? (
@@ -88,7 +88,7 @@ export default function CreateGroup() {
                 ) : (
                   'Create New Group'
                 )}
-              </Button>
+            </Button>
             </div>
 
             <div className="mt-8 text-center">
@@ -96,10 +96,10 @@ export default function CreateGroup() {
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
-                Back to Home
-              </Link>
-            </div>
-          </div>
+            Back to Home
+          </Link>
+        </div>
+      </div>
         </div>
       </div>
 

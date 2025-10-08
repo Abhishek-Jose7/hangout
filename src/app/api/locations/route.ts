@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
     }
 
     // First, check if itineraries already exist for this group
+    console.log('Checking for existing itineraries for group:', groupId);
     const { data: existingItineraries, error: itineraryError } = await supabase
       .from('itineraries')
       .select('*')
@@ -45,14 +46,16 @@ export async function GET(request: NextRequest) {
 
     // If itineraries exist, return them
     if (existingItineraries && existingItineraries.length > 0) {
-      console.log('Returning existing itineraries for group:', groupId);
-      return NextResponse.json({ 
-        success: true, 
+      console.log('Returning cached itineraries for group:', groupId, 'created at:', existingItineraries[0].created_at);
+      return NextResponse.json({
+        success: true,
         locations: existingItineraries[0].locations,
         cached: true,
         createdAt: existingItineraries[0].created_at
       });
     }
+
+    console.log('No cached itineraries found, generating new ones for group:', groupId);
 
     // Get all members of the group from Supabase
     const { data: members, error } = await supabase

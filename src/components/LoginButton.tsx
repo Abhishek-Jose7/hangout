@@ -8,7 +8,7 @@ interface LoginButtonProps {
 }
 
 export const LoginButton: React.FC<LoginButtonProps> = ({ className }) => {
-  return (
+    return (
     <div className={`flex gap-2 ${className}`}>
       <SignedOut>
         <SignInButton mode="modal">
@@ -25,6 +25,6 @@ export const LoginButton: React.FC<LoginButtonProps> = ({ className }) => {
       <SignedIn>
         <UserButton afterSignOutUrl="/" />
       </SignedIn>
-    </div>
+      </div>
   );
 };
