@@ -18,10 +18,14 @@ export default function RootLayout({
   // Check if required keys are properly configured (not placeholders)
   const hasValidClerkKeys = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY !== 'pk_test_placeholder_key' &&
-    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.startsWith('pk_test_') &&
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY !== 'pk_test_YOUR_CLERK_PUBLISHABLE_KEY' &&
+    (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.startsWith('pk_test_') || 
+     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.startsWith('pk_live_')) &&
     process.env.CLERK_SECRET_KEY &&
     process.env.CLERK_SECRET_KEY !== 'sk_test_placeholder_key' &&
-    process.env.CLERK_SECRET_KEY.startsWith('sk_test_');
+    process.env.CLERK_SECRET_KEY !== 'sk_test_YOUR_CLERK_SECRET_KEY' &&
+    (process.env.CLERK_SECRET_KEY.startsWith('sk_test_') || 
+     process.env.CLERK_SECRET_KEY.startsWith('sk_live_'));
 
   const hasValidSupabaseKeys = process.env.NEXT_PUBLIC_SUPABASE_URL &&
     process.env.NEXT_PUBLIC_SUPABASE_URL !== 'https://placeholder.supabase.co' &&
@@ -33,7 +37,7 @@ export default function RootLayout({
       <body suppressHydrationWarning className={`${inter.className} min-h-screen bg-white`}>
         {hasValidClerkKeys && hasValidSupabaseKeys ? (
           <ClerkProvider>
-            {children}
+          {children}
           </ClerkProvider>
         ) : (
           <div className="min-h-screen bg-white flex items-center justify-center">

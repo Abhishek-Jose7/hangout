@@ -54,5 +54,9 @@ export function useSocket() {
     };
   }, []);
 
-  return { socket, isConnected, isSocketAvailable };
+  return { 
+    socket, 
+    isConnected, 
+    isSocketAvailable
+  };
 }

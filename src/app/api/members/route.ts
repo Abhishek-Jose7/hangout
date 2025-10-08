@@ -27,17 +27,20 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!name || !location || budget === undefined || !groupId) {
+      console.error('Missing required fields:', { name, location, budget, groupId });
       return NextResponse.json(
-        { success: false, error: 'Missing required fields' },
+        { success: false, error: 'Missing required fields: name, location, budget, and groupId are required' },
         { status: 400 }
       );
     }
 
-    // Check if Supabase client is available
-    if (!supabase) {
+    // Validate budget is a valid number
+    const budgetNum = parseFloat(budget.toString());
+    if (isNaN(budgetNum) || budgetNum < 0) {
+      console.error('Invalid budget:', budget);
       return NextResponse.json(
-        { success: false, error: 'Database not configured' },
-        { status: 500 }
+        { success: false, error: 'Budget must be a valid positive number' },
+        { status: 400 }
       );
     }
 
@@ -48,7 +51,16 @@ export async function POST(request: NextRequest) {
       .eq('id', groupId)
       .single();
 
-    if (groupError || !group) {
+    if (groupError) {
+      console.error('Error checking group existence:', groupError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to verify group existence' },
+        { status: 500 }
+      );
+    }
+
+    if (!group) {
+      console.error('Group not found:', groupId);
       return NextResponse.json(
         { success: false, error: 'Group not found' },
         { status: 404 }
@@ -56,9 +68,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user is already a member of this group
+    console.log('Checking existing membership for user:', userId, 'in group:', groupId);
+    
     const { data: existingMember, error: existingError } = await supabase
       .from('members')
-      .select('id')
+      .select('id, name, clerk_user_id')
       .eq('clerk_user_id', userId)
       .eq('group_id', groupId)
       .single();
@@ -72,6 +86,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingMember) {
+      console.log('User is already a member of this group:', existingMember);
       // Return existing member data
       const { data: memberData, error: memberError } = await supabase
         .from('members')
@@ -94,12 +109,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Create member in Supabase
+    console.log('Creating new member for user:', userId);
+    
     const { data: member, error: createError } = await supabase
       .from('members')
       .insert({
-        name,
-        location,
-        budget: parseFloat(budget.toString()),
+        name: name.trim(),
+        location: location.trim(),
+        budget: budgetNum,
         mood_tags: Array.isArray(moodTags) ? moodTags.join(',') : '',
         clerk_user_id: userId,
         email: email || null,
@@ -119,18 +136,25 @@ export async function POST(request: NextRequest) {
     // Emit member-joined with updated group payload (only if socket server is available)
     const io = getIO();
     if (io && !process.env.VERCEL) {
-      const { data: updatedGroup, error: updatedGroupError } = await supabase
-        .from('groups')
-        .select(`
-          *,
-          members (*)
-        `)
-        .eq('id', groupId)
-        .single();
+      // Get updated group data in parallel (don't await to avoid blocking response)
+      (async () => {
+        try {
+          const { data: updatedGroup, error: updatedGroupError } = await supabase
+            .from('groups')
+            .select(`
+              *,
+              members (*)
+            `)
+            .eq('id', groupId)
+            .single();
 
-      if (!updatedGroupError && updatedGroup) {
-        io.to(groupId).emit('member-joined', updatedGroup);
-      }
+          if (!updatedGroupError && updatedGroup) {
+            io.to(groupId).emit('member-joined', updatedGroup);
+          }
+        } catch (error) {
+          console.error('Error fetching updated group for socket emission:', error);
+        }
+      })();
     }
 
     return NextResponse.json({ success: true, member });

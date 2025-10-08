@@ -8,6 +8,8 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { io, Socket } from 'socket.io-client'; // eslint-disable-line @typescript-eslint/no-unused-vars
 import { useSocket } from '@/hooks/useSocket';
+import { useRealtime } from '@/hooks/useRealtime';
+import RealtimeStatus from '@/components/RealtimeStatus';
 import { useFetchWithAuth } from '@/lib/fetchWithAuth';
 import { useUser } from '@clerk/nextjs';
 
@@ -48,6 +50,7 @@ export default function GroupPage() {
   const [finalisedIdx, setFinalisedIdx] = useState<number | null>(null);
   const [votedIdx, setVotedIdx] = useState<number | null>(null);
   const { socket, isSocketAvailable } = useSocket();
+  const { subscribeToGroup, unsubscribeFromGroup } = useRealtime();
   const { user } = useUser();
   // Authentication is handled by Clerk middleware in API routes
   const fetchWithAuth = useFetchWithAuth();
@@ -109,15 +112,15 @@ export default function GroupPage() {
         console.log("Group data fetched:", data.group);
         setGroup(data.group);
         
-        // Check if current user is already a member (authentication handled by API route)
-        if (data.group.members && data.group.members.length > 0) {
-          // For demo purposes, assume user is member if group has members
-          // In production, you'd check the authenticated user's membership
-          setHasJoined(true);
-          if (data.group.members[0]) {
-            localStorage.setItem('memberId', data.group.members[0].id);
-          }
-        }
+         // Check if current user is already a member
+         if (data.group.members && data.group.members.length > 0 && user?.id) {
+           const currentUserMember = data.group.members.find((member: Member) => member.clerkUserId === user.id);
+           if (currentUserMember) {
+             setHasJoined(true);
+             localStorage.setItem('memberId', currentUserMember.id);
+             console.log('User is already a member:', currentUserMember);
+           }
+         }
       } catch (err) {
         console.error('Error fetching group:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch group');
@@ -132,28 +135,29 @@ export default function GroupPage() {
     
   }, [code]);
 
-  // Join socket room and subscribe to updates when connected/group ready
+  // Real-time updates using Socket.io or Supabase real-time
   useEffect(() => {
-    if (!socket || !group?.id || !isSocketAvailable) return;
-    socket.emit('join-group', group.id);
-    const onGroupUpdated = (updatedGroup: Group) => {
-      if (updatedGroup.code === code) setGroup(updatedGroup);
-    };
-    const onMemberJoined = (updatedGroup: Group) => {
-      if (updatedGroup.code === code) setGroup(updatedGroup);
-    };
-    socket.on('group-updated', onGroupUpdated);
-    socket.on('member-joined', onMemberJoined);
-    return () => {
-      socket.off('group-updated', onGroupUpdated);
-      socket.off('member-joined', onMemberJoined);
-    };
-  }, [socket, group?.id, code, isSocketAvailable]);
+    if (!group?.id) return;
 
-  // Polling fallback for when Socket.io is not available
-  useEffect(() => {
-    if (isSocketAvailable === false && group?.id) {
-      const pollInterval = setInterval(async () => {
+    if (isSocketAvailable === true && socket) {
+      // Use Socket.io for real-time updates
+      socket.emit('join-group', group.id);
+      const onGroupUpdated = (updatedGroup: Group) => {
+        if (updatedGroup.code === code) setGroup(updatedGroup);
+      };
+      const onMemberJoined = (updatedGroup: Group) => {
+        if (updatedGroup.code === code) setGroup(updatedGroup);
+      };
+      socket.on('group-updated', onGroupUpdated);
+      socket.on('member-joined', onMemberJoined);
+      
+      return () => {
+        socket.off('group-updated', onGroupUpdated);
+        socket.off('member-joined', onMemberJoined);
+      };
+    } else if (isSocketAvailable === false) {
+      // Use Supabase real-time as fallback
+      const handleUpdate = async () => {
         try {
           const response = await fetch(`/api/groups/${code}`);
           const data = await response.json();
@@ -161,13 +165,17 @@ export default function GroupPage() {
             setGroup(data.group);
           }
         } catch (error) {
-          console.error('Polling error:', error);
+          console.error('Real-time update error:', error);
         }
-      }, 5000); // Poll every 5 seconds
+      };
 
-      return () => clearInterval(pollInterval);
+      subscribeToGroup(group.id, handleUpdate);
+      
+      return () => {
+        unsubscribeFromGroup(group.id);
+      };
     }
-  }, [isSocketAvailable, group?.id, code]);
+  }, [socket, group?.id, code, isSocketAvailable]); // Removed subscribeToGroup and unsubscribeFromGroup from dependencies
   
   const handleJoinGroup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,7 +217,9 @@ export default function GroupPage() {
         : await fetch('/api/members', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
       
       if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('API Error:', errorData);
+        throw new Error(errorData.error || `Server error: ${response.status}`);
       }
       
       const data = await response.json();
@@ -223,17 +233,22 @@ export default function GroupPage() {
         localStorage.setItem('memberId', data.member.id);
       }
 
-      console.log("Successfully joined group:", data);
-      setJoinSuccess(true);
-      
-      // Refresh group data
-      const groupResponse = await fetch(`/api/groups/${code}`);
-      const groupData = await groupResponse.json();
-      
-      if (groupData.success) {
-  setGroup(groupData.group);
-  setHasJoined(true);
-      }
+             console.log("Successfully joined group:", data);
+             setJoinSuccess(true);
+             setHasJoined(true);
+             
+             // Refresh group data to show the new member
+             try {
+               const groupResponse = await fetch(`/api/groups/${code}`);
+               const groupData = await groupResponse.json();
+               
+               if (groupData.success) {
+                 setGroup(groupData.group);
+               }
+             } catch (refreshError) {
+               console.error('Error refreshing group data:', refreshError);
+               // Don't show error to user, the join was successful
+             }
       
       // Clear form
   setName('');
@@ -302,17 +317,20 @@ export default function GroupPage() {
   return (
     <main className="flex min-h-screen flex-col items-center p-6">
       <div className="max-w-4xl w-full bg-white rounded-xl shadow-xl p-8 border border-blue-100 mb-8">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-blue-700">Group: {code}</h1>
-            <p className="text-gray-500 text-sm mt-1">Share this code with others to join</p>
-          </div>
-          <Link href="/">
-            <Button variant="outline" className="border-2 border-blue-300 hover:bg-blue-50">
-              Back to Home
-            </Button>
-          </Link>
-        </div>
+               <div className="flex justify-between items-center mb-6">
+                 <div>
+                   <h1 className="text-2xl font-bold text-blue-700">Group: {code}</h1>
+                   <p className="text-gray-500 text-sm mt-1">Share this code with others to join</p>
+                   <div className="mt-2">
+                     <RealtimeStatus groupId={group?.id} />
+                   </div>
+                 </div>
+                 <Link href="/">
+                   <Button variant="outline" className="border-2 border-blue-300 hover:bg-blue-50">
+                     Back to Home
+                   </Button>
+                 </Link>
+               </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Members List */}
@@ -361,11 +379,16 @@ export default function GroupPage() {
           <div className="bg-gray-50 p-6 rounded-lg border">
             <h2 className="text-xl font-semibold mb-4 text-blue-700">Join this Group</h2>
             
-            {hasJoined ? (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
-                You have joined the group. Personal info will not be shown again.
-              </div>
-            ) : (
+                   {hasJoined ? (
+                     <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
+                       <div className="flex items-center">
+                         <svg className="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                         </svg>
+                         You have successfully joined this group! You can now vote on locations.
+                       </div>
+                     </div>
+                   ) : (
               <>
                 {joinError && (
                   <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">

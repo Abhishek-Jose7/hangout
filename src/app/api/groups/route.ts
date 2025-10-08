@@ -57,6 +57,7 @@ export async function POST() {
       io.to(group.id).emit('group-updated', group);
     }
 
+    // Return immediately without waiting for socket emission
     return NextResponse.json({ success: true, group });
   } catch (error) {
     console.error('Error creating group:', error);

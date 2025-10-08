@@ -38,7 +38,61 @@ cd hangout-planner
 npm install
 ```
 
-### 2. Clerk + Supabase Setup
+### 2. Database Setup (Supabase)
+
+1. **Create a Supabase project** at [supabase.com](https://supabase.com)
+2. **Run the database schema** in your Supabase SQL editor:
+
+```sql
+-- Create tables
+CREATE TABLE groups (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE members (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  location TEXT NOT NULL,
+  budget DECIMAL(10,2) NOT NULL,
+  mood_tags TEXT,
+  clerk_user_id TEXT,
+  email TEXT,
+  group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE itinerary_votes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
+  member_id UUID REFERENCES members(id) ON DELETE CASCADE,
+  itinerary_idx INTEGER NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create indexes for better performance
+CREATE INDEX idx_members_group_id ON members(group_id);
+CREATE INDEX idx_members_clerk_user_id ON members(clerk_user_id);
+CREATE INDEX idx_itinerary_votes_group_id ON itinerary_votes(group_id);
+```
+
+**🔧 Quick Setup Script:**
+```bash
+# Run the database setup helper
+node scripts/setup-database.js
+```
+
+3. **Get your Supabase credentials** from Project Settings → API
+4. **Add to `.env.local`**:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+**⚠️ Important:** If you see database errors about missing `clerk_user_id` column, run the SQL from `scripts/fix-database-schema.sql` in your Supabase SQL editor.
+
+### 3. Clerk + Supabase Setup
 
 #### **Clerk Authentication Setup**
 1. **Create a Clerk Application**

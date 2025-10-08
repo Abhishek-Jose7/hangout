@@ -10,6 +10,11 @@ export const supabase = supabaseUrl && supabaseAnonKey && supabaseUrl !== 'https
       auth: {
         autoRefreshToken: false,
         persistSession: false
+      },
+      realtime: {
+        params: {
+          eventsPerSecond: 10
+        }
       }
     })
   : null
@@ -17,6 +22,33 @@ export const supabase = supabaseUrl && supabaseAnonKey && supabaseUrl !== 'https
 // Helper function to check if Supabase is configured
 export const isSupabaseConfigured = () => {
   return !!(supabaseUrl && supabaseAnonKey && supabaseUrl !== 'https://placeholder.supabase.co')
+}
+
+// Real-time subscription helper
+export const subscribeToGroupUpdates = (groupId: string, callback: (payload: unknown) => void) => {
+  if (!supabase) return null;
+  
+  return supabase
+    .channel(`group-${groupId}`)
+    .on('postgres_changes', 
+      { 
+        event: '*', 
+        schema: 'public', 
+        table: 'groups',
+        filter: `id=eq.${groupId}`
+      }, 
+      callback
+    )
+    .on('postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'members',
+        filter: `group_id=eq.${groupId}`
+      },
+      callback
+    )
+    .subscribe();
 }
 
 // Database types for Supabase
