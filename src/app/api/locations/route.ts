@@ -31,12 +31,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if Supabase client is available
-    if (!supabase) {
-      return NextResponse.json(
-        { success: false, error: 'Database not configured' },
-        { status: 500 }
-      );
+    // First, check if itineraries already exist for this group
+    const { data: existingItineraries, error: itineraryError } = await supabase
+      .from('itineraries')
+      .select('*')
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (itineraryError) {
+      console.error('Error fetching existing itineraries:', itineraryError);
+    }
+
+    // If itineraries exist, return them
+    if (existingItineraries && existingItineraries.length > 0) {
+      console.log('Returning existing itineraries for group:', groupId);
+      return NextResponse.json({ 
+        success: true, 
+        locations: existingItineraries[0].locations,
+        cached: true,
+        createdAt: existingItineraries[0].created_at
+      });
     }
 
     // Get all members of the group from Supabase
@@ -71,8 +86,29 @@ export async function GET(request: NextRequest) {
     }));
     
     // Get optimal locations using Gemini API
-    const locationsResult = await findOptimalLocations(formattedMembers);
-    const locations = locationsResult.locations || [];
+    let locations = [];
+    try {
+      const locationsResult = await findOptimalLocations(formattedMembers);
+      locations = locationsResult.locations || [];
+    } catch (geminiError: unknown) {
+      console.error('Gemini API error:', geminiError);
+      
+      // Check if it's a quota error
+      if (geminiError instanceof Error && geminiError.message && geminiError.message.includes('quota')) {
+        return NextResponse.json({
+          success: false,
+          error: 'AI service quota exceeded. Please try again later or contact support.',
+          quotaExceeded: true,
+          retryAfter: 3600 // 1 hour
+        }, { status: 429 });
+      }
+      
+      // For other errors, return a generic message
+      return NextResponse.json({
+        success: false,
+        error: 'Failed to generate location suggestions. Please try again later.'
+      }, { status: 500 });
+    }
 
     // Google Maps API key
     const MAPS_API_KEY = "AIzaSyCseHoECDuGyH1atjLlTWDJBQKhQRI2HWU";
@@ -133,6 +169,35 @@ export async function GET(request: NextRequest) {
         itineraryDetails,
       };
     }));
+
+    // Store the generated itineraries in the database for future use
+    try {
+      // Get the current user's member ID
+      const { data: currentMember } = await supabase
+        .from('members')
+        .select('id')
+        .eq('clerk_user_id', userId)
+        .eq('group_id', groupId)
+        .single();
+
+      const { error: storeError } = await supabase
+        .from('itineraries')
+        .insert({
+          group_id: groupId,
+          locations: enhancedLocations,
+          created_by: currentMember?.id || null
+        });
+
+      if (storeError) {
+        console.error('Error storing itineraries:', storeError);
+        // Don't fail the request if storing fails
+      } else {
+        console.log('Successfully stored itineraries for group:', groupId);
+      }
+    } catch (storeError) {
+      console.error('Error storing itineraries:', storeError);
+      // Don't fail the request if storing fails
+    }
 
     return NextResponse.json({ success: true, locations: enhancedLocations });
   } catch (error) {
