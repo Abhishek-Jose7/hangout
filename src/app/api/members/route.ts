@@ -3,14 +3,17 @@ import { auth } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabase';
 import { getIO } from '@/lib/io';
 
-// Check if Supabase client is available
-if (!supabase) {
-  throw new Error('Supabase client not configured');
-}
-
 // Create a new member
 export async function POST(request: NextRequest) {
   try {
+    // Check if Supabase client is available
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: 'Database not configured. Please set up environment variables.' },
+        { status: 500 }
+      );
+    }
+
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json(

@@ -3,13 +3,16 @@ import { auth } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabase';
 import { findOptimalLocations } from '@/lib/gemini';
 
-// Check if Supabase client is available
-if (!supabase) {
-  throw new Error('Supabase client not configured');
-}
-
 export async function GET(request: NextRequest) {
   try {
+    // Check if Supabase client is available
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: 'Database not configured. Please set up environment variables.' },
+        { status: 500 }
+      );
+    }
+
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json(

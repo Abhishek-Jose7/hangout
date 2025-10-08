@@ -3,11 +3,6 @@ import { auth } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabase';
 import { getIO } from '@/lib/io';
 
-// Check if Supabase client is available
-if (!supabase) {
-  throw new Error('Supabase client not configured');
-}
-
 // Get group by code
 export async function GET(
   request: NextRequest,

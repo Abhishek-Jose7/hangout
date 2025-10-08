@@ -2,11 +2,6 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabase';
 
-// Check if Supabase client is available
-if (!supabase) {
-  throw new Error('Supabase client not configured');
-}
-
 export async function GET() {
   try {
     const { userId } = await auth();
@@ -17,15 +12,14 @@ export async function GET() {
       );
     }
 
-    // Check if Supabase client is available
+    // Test database connection by querying groups
     if (!supabase) {
       return NextResponse.json(
-        { success: false, error: 'Database not configured' },
+        { success: false, error: 'Database not configured. Please set up environment variables.' },
         { status: 500 }
       );
     }
 
-    // Test database connection by querying groups
     const { count: groupCount, error } = await supabase
       .from('groups')
       .select('*', { count: 'exact', head: true });

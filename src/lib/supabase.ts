@@ -14,6 +14,11 @@ export const supabase = supabaseUrl && supabaseAnonKey && supabaseUrl !== 'https
     })
   : null
 
+// Helper function to check if Supabase is configured
+export const isSupabaseConfigured = () => {
+  return !!(supabaseUrl && supabaseAnonKey && supabaseUrl !== 'https://placeholder.supabase.co')
+}
+
 // Database types for Supabase
 export type Database = {
   public: {

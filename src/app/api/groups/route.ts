@@ -4,11 +4,6 @@ import { supabase } from '@/lib/supabase';
 import { randomBytes } from 'crypto';
 import { getIO } from '@/lib/io';
 
-// Check if Supabase client is available
-if (!supabase) {
-  throw new Error('Supabase client not configured');
-}
-
 // Generate a random 6-character code
 function generateGroupCode(): string {
   return randomBytes(3).toString('hex').toUpperCase();
@@ -18,6 +13,14 @@ function generateGroupCode(): string {
 export async function POST() {
   try {
     console.log('Creating new group...');
+
+    // Check if Supabase client is available
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: 'Database not configured. Please set up environment variables.' },
+        { status: 500 }
+      );
+    }
 
     // Check if user is authenticated with Clerk
     const { userId } = await auth();
@@ -30,14 +33,6 @@ export async function POST() {
 
     const code = generateGroupCode();
     console.log('Generated code:', code);
-
-    // Check if Supabase client is available
-    if (!supabase) {
-      return NextResponse.json(
-        { success: false, error: 'Database not configured' },
-        { status: 500 }
-      );
-    }
 
     // Create the group in Supabase
     const { data: group, error } = await supabase
