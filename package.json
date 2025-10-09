@@ -12,6 +12,7 @@
     "@clerk/nextjs": "^6.33.3",
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.74.0",
+    "@types/google.maps": "^3.58.1",
     "firebase": "^12.1.0",
     "firebase-admin": "^11.11.0",
     "leaflet": "^1.9.4",

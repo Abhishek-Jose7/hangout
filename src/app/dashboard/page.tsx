@@ -6,6 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Button from '@/components/ui/Button';
+import SessionManager from '@/lib/sessionManager';
 
 type Group = {
   id: string;
@@ -21,6 +22,7 @@ type Group = {
 
 export default function Dashboard() {
   const { user, isLoaded } = useUser();
+  const sessionManager = SessionManager.getInstance();
   const [groups, setGroups] = useState<Group[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -34,21 +36,53 @@ export default function Dashboard() {
   const fetchUserGroups = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/user/groups');
+      setError('');
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch groups: ${response.status}`);
-      }
+      // First try to get groups from session manager
+      const userGroups = sessionManager.getUserGroups(user!.id);
+      console.log('User groups from session:', userGroups);
 
-      const data = await response.json();
-
-      if (data.success) {
-        setGroups(data.groups || []);
+      if (userGroups.length > 0) {
+        // If we have groups in session, try to fetch details from API
+        try {
+          const response = await fetch('/api/user/groups');
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              setGroups(data.groups || []);
+            } else {
+              // Fallback to session data
+              setGroups([]);
+            }
+          } else {
+            // Fallback to session data
+            setGroups([]);
+          }
+        } catch (apiError) {
+          console.warn('API call failed, using session data');
+          setGroups([]);
+        }
       } else {
-        setError(data.error || 'Failed to fetch groups');
+        // No groups in session, try to fetch from API
+        try {
+          const response = await fetch('/api/user/groups');
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              setGroups(data.groups || []);
+            } else {
+              setError(data.error || 'Failed to fetch groups');
+            }
+          } else {
+            setError('Failed to fetch groups');
+          }
+        } catch (apiError) {
+          console.error('API call failed:', apiError);
+          setError('Failed to fetch groups');
+        }
       }
     } catch (err) {
-      console.error('Error fetching groups:', err);
+      console.error('Error in fetchUserGroups:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch groups');
     } finally {
       setIsLoading(false);

@@ -3,23 +3,76 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // Initialize the Gemini API client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-export async function findOptimalLocations(members: { name: string; location: string; budget: number; moodTags: string[] }[]) {
+export async function findOptimalLocations(members: { name: string; location: string; budget: number; moodTags: string[]; preferredDate: string | null }[]) {
   try {
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     
     const locations = members.map(member => member.location);
     const budgets = members.map(member => member.budget);
   const allMoodTags = members.flatMap(member => member.moodTags ?? []);
+    // Check if this is for a romantic date (based on mood tags and number of people)
+    const isRomanticDate = members.length === 2 &&
+      (allMoodTags.some(tag => ['romantic', 'cozy', 'intimate', 'date'].includes(tag.toLowerCase())) ||
+       allMoodTags.includes('Culture') || allMoodTags.includes('Food'));
+
+    const averageBudget = budgets.reduce((a, b) => a + b, 0) / budgets.length;
+
+    // Check if any member has a preferred date set (for romantic suggestions)
+    const hasPreferredDate = members.some(member => member.preferredDate);
+    const preferredDateText = hasPreferredDate ? ` (some members have preferred dates set)` : '';
+
     const prompt = `
-      I have a group of ${members.length} people located at: ${locations.join(', ')}. 
-      Their budgets are: ${budgets.join(', ')} respectively.
-      The group's preferred moods/tags are: ${allMoodTags.join(', ')}.
-      Please find 4-5 optimal centroid meetup locations based on the groups location that are real, geocodable places (cities, towns, or well-known areas) convenient and equally fair for everyone to meet. Use travel time through trains for each member as a base. Do not suggest vague or fictional places.
-      
+      I have a group of ${members.length} people located at: ${locations.join(', ')}.
+      Their budgets are: ${budgets.join(', ')} respectively (average: ${averageBudget}).
+      The group's preferred moods/tags are: ${allMoodTags.join(', ')}${preferredDateText}.
+
+      ${isRomanticDate ?
+        `This appears to be a romantic date between 2 people${preferredDateText}. Suggest locations perfect for a romantic date with activities like cafes, beaches, movies, romantic walks, rooftop dining, live music venues, pottery classes, art workshops, cooking classes, etc. Focus on intimate, cozy, and memorable experiences. Consider the user's locations and suggest places that are easily accessible from their areas.` :
+        `Please find 4-5 optimal centroid meetup locations based on the groups location that are real, geocodable places (cities, towns, or well-known areas) convenient and equally fair for everyone to meet.`
+      }
+
       For each location, suggest a realistic itinerary of SPECIFIC activities that people actually do when they hangout. Focus on specific, named places and activities like:
-      
+
+      ${isRomanticDate ? `
+      ROMANTIC DATE ACTIVITIES (INDIA FOCUSED - Near User Locations):
+      COZY CAFES & DATE SPOTS:
+      - "Starbucks Coffee" or "Cafe Coffee Day" (romantic cafes)
+      - "Chaayos" or "Chai Point" (cozy tea spots)
+      - "The Piano Man Jazz Club" or "Hard Rock Cafe" (live music venues)
+      - "Rooftop Cafe" or "Sky Lounge" (romantic dining)
+      - "Book Cafe" or "Literature Lounge" (quiet reading spots)
+      - "Art Cafe" or "Creative Space" (artistic dates)
+
+      CREATIVE & HANDS-ON DATES:
+      - "Pottery Class" or "Ceramic Workshop" (creative dates)
+      - "Art Workshop" or "Painting Session" (artistic experiences)
+      - "Cooking Class" or "Culinary Workshop" (food experiences)
+      - "Wine Tasting" or "Brewery Tour" (sophisticated dates)
+      - "Photography Walk" or "Photo Session" (memorable experiences)
+
+      ROMANTIC OUTDOOR SPOTS:
+      - "Juhu Beach" or "Marine Drive" (romantic walks)
+      - "Lodhi Garden" or "Central Park" (peaceful outdoor spots)
+      - "Nehru Planetarium" or "Observatory" (romantic stargazing)
+      - "Boat Ride" or "Cruise" (romantic water activities)
+      - "Picnic Spot" or "Garden Cafe" (outdoor dining)
+
+      ENTERTAINMENT FOR COUPLES:
+      - "PVR Cinemas" or "INOX" (romantic movies)
+      - "Escape Room India" or "Breakout" (fun challenges)
+      - "Karaoke Lounge" or "Singing Cafe" (fun activities)
+      - "Comedy Show" or "Stand-up Venue" (laughing together)
+      - "Live Music Venue" or "Jazz Club" (romantic evenings)
+
+      SWEET TREATS & DESSERTS:
+      - "Cream Stone" or "Baskin Robbins" (ice cream dates)
+      - "Chocolate Room" or "Dessert Cafe" (sweet treats)
+      - "Wine Bar" or "Cocktail Lounge" (romantic drinks)
+      - "Patisserie" or "Bakery Cafe" (sweet dates)
+      - "Tea House" or "Tea Ceremony" (cultural experiences)
+      ` : `
       SPECIFIC ACTIVITIES (use exact names) - INDIA FOCUSED:
-      
+
       RESTAURANTS & FOOD:
       - "McDonald's" or "KFC" or "Domino's Pizza" (not just "restaurant")
       - "Starbucks Coffee" or "Cafe Coffee Day" (not just "cafe")
@@ -28,7 +81,7 @@ export async function findOptimalLocations(members: { name: string; location: st
       - "Barbeque Nation" or "Barista" (not just "restaurant")
       - "Cream Stone" or "Baskin Robbins" (not just "ice cream")
       - "Chaayos" or "Chai Point" (not just "tea shop")
-      
+
       ENTERTAINMENT & ACTIVITIES:
       - "PVR Cinemas" or "INOX" or "Cinepolis" (not just "movie theater")
       - "Smaaash Bowling" or "Strike Bowling" or "Bowling Company" (not just "bowling")
@@ -40,20 +93,14 @@ export async function findOptimalLocations(members: { name: string; location: st
       - "Trampoline Park" or "Sky Zone" (not just "trampoline")
       - "Ice Skating Rink" or "Snow World" (not just "ice skating")
       - "Paintball Arena" or "Combat Zone" (not just "paintball")
-      - "Go-Karting Track" or "Kart Attack" (not just "go-karting")
-      - "Rock Climbing Wall" or "Climb Central" (not just "rock climbing")
-      - "Mini Golf Course" or "Golf Course" (not just "mini golf")
-      - "Billiards Club" or "Snooker Zone" (not just "billiards")
-      - "Table Tennis Club" or "TT Zone" (not just "table tennis")
-      
+
       SHOPPING & MALLS:
       - "Phoenix MarketCity" or "Inorbit Mall" (not just "mall")
       - "Reliance Digital" or "Croma" (not just "electronics store")
       - "Shoppers Stop" or "Pantaloons" (not just "clothing store")
       - "Big Bazaar" or "D-Mart" (not just "supermarket")
       - "Lifestyle" or "Central" (not just "department store")
-      - "Crossword" or "Landmark" (not just "bookstore")
-      
+
       OUTDOOR & ACTIVITIES:
       - "Central Park" or "Lodhi Garden" (not just "park")
       - "Marine Drive" or "Juhu Beach" (not just "beach")
@@ -61,54 +108,25 @@ export async function findOptimalLocations(members: { name: string; location: st
       - "Nehru Planetarium" or "Birla Planetarium" (not just "planetarium")
       - "Zoo" or "National Zoological Park" (not just "zoo")
       - "Botanical Garden" or "Lalbagh Botanical Garden" (not just "garden")
-      - "Adventure Park" or "Rope Course" (not just "adventure")
-      - "Water Park" or "Aqua Park" (not just "water park")
-      - "Cycling Track" or "Bike Trail" (not just "cycling")
-      - "Boating Lake" or "Boat Club" (not just "boating")
-      
-      SPORTS & FITNESS:
-      - "Fitness First" or "Gold's Gym" (not just "gym")
-      - "Sports Village" or "Sports Complex" (not just "sports center")
-      - "Swimming Pool" or "Aqua Sports" (not just "pool")
-      - "Tennis Court" or "Badminton Court" (not just "court")
-      - "Cricket Ground" or "Cricket Academy" (not just "cricket")
-      - "Football Ground" or "Football Academy" (not just "football")
-      - "Basketball Court" or "Basketball Academy" (not just "basketball")
-      - "Volleyball Court" or "Volleyball Academy" (not just "volleyball")
-      - "Yoga Center" or "Yoga Studio" (not just "yoga")
-      - "Dance Academy" or "Dance Studio" (not just "dance")
-      
-      CULTURAL & ARTS:
-      - "National Gallery of Modern Art" (not just "art gallery")
-      - "Bharat Bhavan" or "Cultural Center" (not just "cultural center")
-      - "Rangoli Metro Art Center" (not just "art center")
-      - "Art Gallery" or "Exhibition Center" (not just "gallery")
-      - "Theater" or "Auditorium" (not just "theater")
-      - "Music Academy" or "Music School" (not just "music")
-      
-      GAMING & TECH:
-      - "GameStop" or "Gaming Zone" (not just "game store")
-      - "Cyber Hub" or "Gurgaon Cyber City" (not just "tech hub")
-      - "Gaming Cafe" or "Internet Cafe" (not just "cafe")
-      - "Board Game Cafe" or "Card Game Center" (not just "board games")
-      
+      `}
+
              CRITICAL: Always suggest SPECIFIC places where you can actually DO the activity, not just the mall or area name. For example:
        - Say "Smaaash Bowling" (specific bowling place), not "Phoenix Mall" (just the mall)
-       - Say "Timezone Arcade" (specific arcade), not "Inorbit Mall" (just the mall)
-       - Say "Escape Room India" (specific escape room), not "Cyber Hub" (just the area)
-       - Say "Laser Tag Arena" (specific laser tag place), not "Entertainment Zone" (just the zone)
-       
+       - Say "Starbucks Coffee" (specific cafe), not "Coffee Shop" (generic)
+       - Say "Juhu Beach" (specific beach), not "Beach" (generic)
+       - Say "PVR Cinemas" (specific cinema), not "Movie Theater" (generic)
+
        IMPORTANT: Always use specific, real business names that can be found on Google Maps. Do NOT use generic terms like "mall", "park", "restaurant". Use actual business names where you can actually do the activity.
-      
-      Choose 3-4 specific activities that fit within the average budget of ${budgets.reduce((a, b) => a + b, 0) / budgets.length} and match the group's mood tags. Each activity should be a specific, real place with a name.
-      
+
+      Choose 3-4 specific activities that fit within the average budget of ${averageBudget} and match the group's mood tags. Each activity should be a specific, real place with a name.
+
       Format the response as JSON with this structure:
       {
         "locations": [
           {
             "name": "Location Name (must be a real, geocodable place)",
             "description": "Brief description of why this location is good for the group",
-                         "itinerary": ["Specific Activity 1 (e.g., 'Smaaash Bowling')", "Specific Activity 2 (e.g., 'Starbucks Coffee')", "Specific Activity 3 (e.g., 'PVR Cinemas')"],
+                         "itinerary": ["Specific Activity 1 (e.g., 'Starbucks Coffee')", "Specific Activity 2 (e.g., 'Juhu Beach')", "Specific Activity 3 (e.g., 'PVR Cinemas')"],
             "estimatedCost": 123
           }
         ]

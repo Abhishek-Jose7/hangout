@@ -43,9 +43,14 @@ export default function Navbar() {
                         Home
                       </Link>
                       {user && (
-                        <Link href="/dashboard" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
-                          My Groups
-                        </Link>
+                        <>
+                          <Link href="/dashboard" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
+                            My Groups
+                          </Link>
+                          <Link href="/date" className="text-gray-700 hover:text-pink-600 px-3 py-2 text-sm font-medium transition-colors">
+                            Date Planner
+                          </Link>
+                        </>
                       )}
                       <Link href="#features" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
                         Features
@@ -97,13 +102,22 @@ export default function Navbar() {
                      Home
                    </Link>
                    {user && (
-                     <Link
-                       href="/dashboard"
-                       className="text-gray-700 hover:text-blue-600 block px-3 py-2 text-base font-medium transition-colors"
-                       onClick={() => setIsMobileMenuOpen(false)}
-                     >
-                       My Groups
-                     </Link>
+                     <>
+                       <Link
+                         href="/dashboard"
+                         className="text-gray-700 hover:text-blue-600 block px-3 py-2 text-base font-medium transition-colors"
+                         onClick={() => setIsMobileMenuOpen(false)}
+                       >
+                         My Groups
+                       </Link>
+                       <Link
+                         href="/date"
+                         className="text-gray-700 hover:text-pink-600 block px-3 py-2 text-base font-medium transition-colors"
+                         onClick={() => setIsMobileMenuOpen(false)}
+                       >
+                         Date Planner
+                       </Link>
+                     </>
                    )}
                    <Link
                      href="#features"

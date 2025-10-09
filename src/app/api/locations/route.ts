@@ -79,13 +79,14 @@ export async function GET(request: NextRequest) {
     }
     
     // Format members for the Gemini API
-    const formattedMembers = members.map((member: { name: string; location: string; budget: number; mood_tags: string }) => ({
+    const formattedMembers = members.map((member: { name: string; location: string; budget: number; mood_tags: string; preferred_date: string | null }) => ({
       name: member.name,
       location: member.location,
       budget: member.budget,
       moodTags: member.mood_tags && member.mood_tags.length > 0
         ? member.mood_tags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
-        : []
+        : [],
+      preferredDate: member.preferred_date || null
     }));
     
     // Get optimal locations using Gemini API
@@ -117,6 +118,40 @@ export async function GET(request: NextRequest) {
     const MAPS_API_KEY = "AIzaSyCseHoECDuGyH1atjLlTWDJBQKhQRI2HWU";
     if (!MAPS_API_KEY) {
       return NextResponse.json({ success: false, error: 'MAPS_API_KEY not set' }, { status: 500 });
+    }
+
+    // Helper function to get coordinates for a location using Google Geocoding API
+    async function geocodeLocation(locationName: string): Promise<{ lat: number; lng: number } | null> {
+      try {
+        const encodedLocation = encodeURIComponent(locationName);
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedLocation}&key=${MAPS_API_KEY}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.results && data.results.length > 0) {
+          const location = data.results[0].geometry.location;
+          return { lat: location.lat, lng: location.lng };
+        }
+        return null;
+      } catch (error) {
+        console.error('Error geocoding location:', error);
+        return null;
+      }
+    }
+
+    // Helper function to calculate distance between two coordinates
+    function calculateDistance(coord1: { lat: number; lng: number }, coord2: { lat: number; lng: number }): number {
+      const R = 6371; // Earth's radius in km
+      const dLat = (coord2.lat - coord1.lat) * Math.PI / 180;
+      const dLng = (coord2.lng - coord1.lng) * Math.PI / 180;
+
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(coord1.lat * Math.PI / 180) * Math.cos(coord2.lat * Math.PI / 180) *
+                Math.sin(dLng/2) * Math.sin(dLng/2);
+
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c; // Distance in km
     }
 
     // Helper to fetch place details from Google Maps Places API

@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const payload = await request.json();
-    const { name, location, budget, groupId, moodTags, email } = payload;
+          const payload = await request.json();
+          const { name, location, budget, groupId, moodTags, email } = payload;
 
     // Validate required fields
     if (!name || !location || budget === undefined || !groupId) {
@@ -108,22 +108,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create member in Supabase
-    console.log('Creating new member for user:', userId);
-    
-    const { data: member, error: createError } = await supabase
-      .from('members')
-      .insert({
-        name: name.trim(),
-        location: location.trim(),
-        budget: budgetNum,
-        mood_tags: Array.isArray(moodTags) ? moodTags.join(',') : '',
-        clerk_user_id: userId,
-        email: email || null,
-        group_id: groupId
-      })
-      .select()
-      .single();
+           // Create member in Supabase
+           console.log('Creating new member for user:', userId);
+
+           const { data: member, error: createError } = await supabase
+             .from('members')
+             .insert({
+               name: name.trim(),
+               location: location.trim(),
+               budget: budgetNum,
+               mood_tags: Array.isArray(moodTags) ? moodTags.join(',') : '',
+               clerk_user_id: userId,
+               email: email || null,
+               group_id: groupId
+             })
+             .select()
+             .single();
 
     if (createError) {
       console.error('Error creating member:', createError);
