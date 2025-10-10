@@ -2,6 +2,8 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { ClerkProvider } from '@clerk/nextjs';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ClientErrorHandler } from '@/components/ClientErrorHandler';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -57,7 +59,11 @@ export default function RootLayout({
             afterSignInUrl="/dashboard"
             afterSignUpUrl="/dashboard"
           >
-          {children}
+          <ErrorBoundary>
+            <ClientErrorHandler>
+              {children}
+            </ClientErrorHandler>
+          </ErrorBoundary>
           </ClerkProvider>
         ) : (
           <div className="min-h-screen bg-white flex items-center justify-center">

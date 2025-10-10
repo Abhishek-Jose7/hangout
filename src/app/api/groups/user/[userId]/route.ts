@@ -72,7 +72,7 @@ export async function GET(
           // Get vote counts
           if (!supabase) return group;
           const { data: votes, error: voteError } = await supabase
-            .from('votes')
+            .from('itinerary_votes')
             .select('itinerary_idx')
             .eq('group_id', group.id);
 
@@ -82,21 +82,20 @@ export async function GET(
           }
 
           // Count votes by itinerary index
-          const voteCounts: Record<string, number> = {};
+          const voteCounts: Record<number, number> = {};
           votes?.forEach(vote => {
-            const key = `itinerary_${vote.itinerary_idx}`;
-            voteCounts[key] = (voteCounts[key] || 0) + 1;
+            voteCounts[vote.itinerary_idx] = (voteCounts[vote.itinerary_idx] || 0) + 1;
           });
 
           // Find finalized index (itinerary with most votes)
           let finalisedIdx: number | null = null;
-          if (Object.keys(voteCounts).length > 0) {
-            const maxVotes = Math.max(...Object.values(voteCounts));
-            const winningKey = Object.keys(voteCounts).find(key => voteCounts[key] === maxVotes);
-            if (winningKey) {
-              finalisedIdx = parseInt(winningKey.replace('itinerary_', ''));
+          let maxVotes = 0;
+          Object.entries(voteCounts).forEach(([idx, count]) => {
+            if (count > maxVotes) {
+              maxVotes = count;
+              finalisedIdx = Number(idx);
             }
-          }
+          });
 
           // Get cached locations if available
           const { data: itinerary } = await supabase

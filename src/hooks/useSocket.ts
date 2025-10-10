@@ -52,7 +52,7 @@ export function useSocket() {
         socket.disconnect();
       }
     };
-  }, []);
+  }, [socket]);
 
   return { 
     socket, 

@@ -1,5 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const isProtectedRoute = createRouteMatcher([
   '/dashboard(.*)',
   '/group(.*)',
@@ -7,7 +8,8 @@ const isProtectedRoute = createRouteMatcher([
   '/date(.*)'
 ]);
 
-export default clerkMiddleware((auth, req) => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export default clerkMiddleware((_auth, _req) => {
   // Route protection handled by individual pages
 }, {
   // Safari-compatible configuration

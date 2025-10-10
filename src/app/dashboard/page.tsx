@@ -29,8 +29,8 @@ interface Group {
     activities: string[];
     estimatedCost: number;
   }>;
-  voteCounts?: Record<string, number>;
-  finalisedIdx?: number;
+  voteCounts?: Record<number, number>;
+  finalisedIdx?: number | null;
 }
 
 export default function Dashboard() {
@@ -105,7 +105,7 @@ export default function Dashboard() {
         ));
       });
 
-      socket.on('vote-updated', (data: { groupCode: string; voteCounts: Record<string, number>; finalisedIdx: number }) => {
+      socket.on('vote-updated', (data: { groupCode: string; voteCounts: Record<number, number>; finalisedIdx: number }) => {
         setGroups(prev => prev.map(group => 
           group.code === data.groupCode 
             ? { ...group, voteCounts: data.voteCounts, finalisedIdx: data.finalisedIdx }
@@ -395,12 +395,15 @@ export default function Dashboard() {
                   <div className="mb-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-3">Current Votes</h3>
                     <div className="space-y-2">
-                      {Object.entries(selectedGroup.voteCounts).map(([locationName, count]) => (
-                        <div key={locationName} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <span className="text-gray-900">{locationName}</span>
-                          <span className="font-semibold text-blue-600">{count} vote{count !== 1 ? 's' : ''}</span>
-                        </div>
-                      ))}
+                      {Object.entries(selectedGroup.voteCounts).map(([itineraryIdx, count]) => {
+                        const locationName = selectedGroup.locations?.[Number(itineraryIdx)]?.name || `Option ${Number(itineraryIdx) + 1}`;
+                        return (
+                          <div key={itineraryIdx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <span className="text-gray-900">{locationName}</span>
+                            <span className="font-semibold text-blue-600">{count} vote{count !== 1 ? 's' : ''}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

@@ -8,7 +8,12 @@ import { useUser } from '@clerk/nextjs';
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const { user } = useUser();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -42,7 +47,7 @@ export default function Navbar() {
                       <Link href="/" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
                         Home
                       </Link>
-                      {user && (
+                      {isMounted && user && (
                         <>
                           <Link href="/dashboard" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
                             My Groups
@@ -101,7 +106,7 @@ export default function Navbar() {
                    >
                      Home
                    </Link>
-                   {user && (
+                   {isMounted && user && (
                      <>
                        <Link
                          href="/dashboard"
