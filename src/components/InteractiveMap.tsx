@@ -43,10 +43,10 @@ export default function InteractiveMap({ location, userLocation, className = "" 
 
         const locationCoords = geocodeData.coordinates;
 
-        // Create map centered on the location with some zoom out to show clusters
+        // Create map centered on the location
         const mapOptions = {
           center: locationCoords,
-          zoom: 13, // Zoomed out to show activity zones
+          zoom: 15,
           mapTypeControl: true,
           streetViewControl: true,
           fullscreenControl: true,
@@ -54,73 +54,6 @@ export default function InteractiveMap({ location, userLocation, className = "" 
         };
 
         const mapInstance = new window.google.maps.Map(mapRef.current!, mapOptions);
-
-        // Add cluster circles for activity zones based on location type
-        const activityZones = [
-          {
-            center: { lat: locationCoords.lat + 0.002, lng: locationCoords.lng + 0.002 },
-            radius: 200,
-            color: '#EF4444', // Red for dining areas
-            title: '🍽️ Dining & Food Zone',
-            description: 'Multiple restaurants and cafes nearby'
-          },
-          {
-            center: { lat: locationCoords.lat - 0.002, lng: locationCoords.lng - 0.002 },
-            radius: 150,
-            color: '#8B5CF6', // Purple for entertainment
-            title: '🎬 Entertainment Zone',
-            description: 'Movies, arcades, and fun activities'
-          },
-          {
-            center: { lat: locationCoords.lat + 0.001, lng: locationCoords.lng - 0.001 },
-            radius: 180,
-            color: '#10B981', // Green for parks/outdoor
-            title: '🌳 Outdoor Activities Zone',
-            description: 'Parks, beaches, and outdoor recreation'
-          }
-        ];
-
-        // Draw activity zone circles
-        activityZones.forEach(zone => {
-          const circle = new window.google.maps.Circle({
-            center: zone.center,
-            radius: zone.radius,
-            strokeColor: zone.color,
-            strokeOpacity: 0.3,
-            strokeWeight: 2,
-            fillColor: zone.color,
-            fillOpacity: 0.1,
-            map: mapInstance
-          });
-
-          // Add info window for zone
-          const infoWindow = new window.google.maps.InfoWindow({
-            content: `<div class="text-center p-2">
-              <strong>${zone.title}</strong><br/>
-              <small>${zone.description}</small>
-            </div>`
-          });
-
-          const zoneMarker = new window.google.maps.Marker({
-            position: zone.center,
-            map: mapInstance,
-            title: zone.title,
-            icon: {
-              url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="10" fill="${zone.color}" stroke="white" stroke-width="2"/>
-                  <text x="12" y="16" text-anchor="middle" fill="white" font-size="10" font-weight="bold">📍</text>
-                </svg>
-              `),
-              scaledSize: new window.google.maps.Size(24, 24),
-              anchor: new window.google.maps.Point(12, 12)
-            }
-          });
-
-          zoneMarker.addListener('click', () => {
-            infoWindow.open(mapInstance, zoneMarker);
-          });
-        });
 
         // Add marker for the meetup location
         new window.google.maps.Marker({
@@ -172,11 +105,10 @@ export default function InteractiveMap({ location, userLocation, className = "" 
             map: mapInstance
           });
 
-          // Fit map to show both markers and activity zones
+          // Fit map to show both markers
           const bounds = new window.google.maps.LatLngBounds();
           bounds.extend(userLocation);
           bounds.extend(locationCoords);
-          activityZones.forEach(zone => bounds.extend(zone.center));
           mapInstance.fitBounds(bounds);
         }
 
@@ -193,33 +125,12 @@ export default function InteractiveMap({ location, userLocation, className = "" 
 
   const loadGoogleMapsAPI = () => {
     return new Promise<void>((resolve, reject) => {
-      // Check if already loaded
       if (window.google && window.google.maps) {
         resolve();
         return;
       }
 
-      // Check if script is already loading
-      const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
-      if (existingScript) {
-        // Wait for it to load
-        const checkInterval = setInterval(() => {
-          if (window.google && window.google.maps) {
-            clearInterval(checkInterval);
-            resolve();
-          }
-        }, 100);
-
-        // Timeout after 10 seconds
-        setTimeout(() => {
-          clearInterval(checkInterval);
-          reject(new Error('Google Maps API load timeout'));
-        }, 10000);
-        return;
-      }
-
       const script = document.createElement('script');
-      script.crossOrigin = 'anonymous';
       script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyCseHoECDuGyH1atjLlTWDJBQKhQRI2HWU'}&libraries=geometry`;
       script.async = true;
       script.defer = true;
@@ -242,17 +153,12 @@ export default function InteractiveMap({ location, userLocation, className = "" 
 
   if (error) {
     return (
-      <div className={`bg-yellow-50 border border-yellow-200 rounded-lg p-4 ${className}`}>
+      <div className={`bg-red-50 border border-red-200 rounded-lg p-4 ${className}`}>
         <div className="flex items-center">
-          <svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg className="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <div>
-            <span className="text-yellow-800 font-medium">Map temporarily unavailable</span>
-            <p className="text-xs text-yellow-700 mt-1">
-              Interactive map will load when your connection is restored
-            </p>
-          </div>
+          <span className="text-red-700">{error}</span>
         </div>
       </div>
     );

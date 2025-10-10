@@ -22,99 +22,39 @@ export default function DatePlanner() {
   const [selectedLocation, setSelectedLocation] = useState<DateLocation | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState<boolean>(false);
 
-  // State for actual places fetched from API
-  const [nearbyPlaces, setNearbyPlaces] = useState<DateLocation[]>([]);
-  const [isLoadingPlaces, setIsLoadingPlaces] = useState(false);
-
-  // Fetch actual date places based on user's location
-  const fetchDatePlaces = async (userLocation: { lat: number; lng: number }) => {
-    try {
-      setIsLoadingPlaces(true);
-      // Use Google Places API to find actual date places near user
-      const response = await fetch(`/api/places/nearby?lat=${userLocation.lat}&lng=${userLocation.lng}&radius=5000&type=establishment`);
-      if (response.ok) {
-        const data = await response.json();
-        const places = data.places || [];
-        
-        // Convert API places to DateLocation format
-        const dateLocations = places.map((place: { name: string; address: string; types: string[]; estimatedCost?: number; rating?: number; location: { lat: number; lng: number } }) => ({
-          name: place.name,
-          description: `${place.address} - ${place.types.join(', ')}`,
-          activities: [
-            `${place.name} experience`,
-            'Romantic dinner',
-            'Photo opportunities',
-            'Quality time together',
-            'Create memories'
-          ],
-          estimatedCost: place.estimatedCost || 500,
-          rating: place.rating,
-          address: place.address,
-          location: place.location
-        }));
-        
-        setNearbyPlaces(dateLocations);
-        return dateLocations;
-      }
-    } catch (error) {
-      console.error('Error fetching nearby places:', error);
-    } finally {
-      setIsLoadingPlaces(false);
+  // Predefined romantic date locations
+  const dateLocations: DateLocation[] = [
+    {
+      name: "Marine Drive, Mumbai",
+      description: "A romantic seaside promenade perfect for evening walks and watching the sunset",
+      activities: ["Romantic sunset walk", "Street food stalls", "Photography spots", "People watching"],
+      estimatedCost: 200
+    },
+    {
+      name: "Juhu Beach, Mumbai",
+      description: "Famous beach with street food, horse rides, and beautiful Arabian Sea views",
+      activities: ["Beach walk", "Street food", "Horse riding", "Sunset viewing"],
+      estimatedCost: 300
+    },
+    {
+      name: "Lodhi Garden, Delhi",
+      description: "Historic garden with Mughal-era monuments, perfect for a peaceful romantic outing",
+      activities: ["Garden walk", "Picnic", "Historical exploration", "Photography"],
+      estimatedCost: 150
+    },
+    {
+      name: "India Gate, Delhi",
+      description: "Iconic war memorial with beautiful lawns, ideal for evening strolls",
+      activities: ["Monument visit", "Ice cream vendors", "Evening walk", "Photo opportunities"],
+      estimatedCost: 100
+    },
+    {
+      name: "Phoenix MarketCity, Mumbai",
+      description: "Modern shopping mall with movie theaters, restaurants, and entertainment",
+      activities: ["Movie date", "Shopping", "Fine dining", "Arcade games"],
+      estimatedCost: 800
     }
-    return [];
-  };
-
-  // Dynamic date locations based on user's location
-  const getDateLocationsForUser = (): DateLocation[] => {
-    // Default locations if geolocation fails
-    const defaultLocations: DateLocation[] = [
-      {
-        name: "Pottery Studio & Cafe",
-        description: "Hands-on pottery making followed by a cozy cafe visit - perfect for creative couples",
-        activities: ["Pottery throwing workshop (2 hours)", "Paint your creations together", "Coffee & dessert at local cafe", "Take home your handmade pieces", "Photo session with your pottery"],
-        estimatedCost: 800
-      },
-      {
-        name: "Art Gallery & Wine Bar",
-        description: "Explore contemporary art together and enjoy a sophisticated wine tasting experience",
-        activities: ["Guided gallery tour", "Art appreciation workshop", "Wine tasting session", "Discussion about favorite pieces", "Rooftop dining with city views"],
-        estimatedCost: 1200
-      },
-      {
-        name: "Beach Restaurant & Sunset",
-        description: "Romantic beach dining with sunset views and intimate atmosphere",
-        activities: ["Beachfront dining", "Sunset photography session", "Romantic dinner for two", "Beach walking hand-in-hand", "Stargazing after dark"],
-        estimatedCost: 1000
-      },
-      {
-        name: "Cooking Class for Two",
-        description: "Learn to cook a romantic dinner together in a professional kitchen",
-        activities: ["Professional cooking class", "Prepare 3-course meal together", "Wine pairing lessons", "Eat your creations", "Take recipes home"],
-        estimatedCost: 1500
-      },
-      {
-        name: "Spa & Wellness Retreat",
-        description: "Relaxing couples spa treatment followed by healthy dining",
-        activities: ["Couples massage therapy", "Aromatherapy session", "Sauna & steam room", "Healthy smoothie bar", "Meditation garden visit"],
-        estimatedCost: 2000
-      },
-      {
-        name: "Movie Theater & Fine Dining",
-        description: "Private movie screening with gourmet dining experience",
-        activities: ["Private cinema screening", "Gourmet dinner service", "Champagne toast", "Discussion about the film", "Late night dessert"],
-        estimatedCost: 1800
-      }
-    ];
-
-    // If we have nearby places from API, use those; otherwise use defaults
-    if (nearbyPlaces.length > 0) {
-      return nearbyPlaces;
-    }
-
-    return defaultLocations;
-  };
-
-  const dateLocations = getDateLocationsForUser();
+  ];
 
   const getUserLocation = async () => {
     try {
@@ -126,18 +66,12 @@ export default function DatePlanner() {
       }
 
       navigator.geolocation.getCurrentPosition(
-        async (position) => {
+        (position) => {
           const location = {
             lat: position.coords.latitude,
             lng: position.coords.longitude
           };
           setUserLocation(location);
-          
-          // Fetch actual nearby places for dates
-          const nearbyPlaces = await fetchDatePlaces(location);
-          if (nearbyPlaces.length > 0) {
-            console.log('Found nearby date places:', nearbyPlaces);
-          }
         },
         (error) => {
           console.error('Error getting location:', error);
@@ -193,7 +127,7 @@ export default function DatePlanner() {
             <h1 className="text-3xl font-bold text-gray-900 mb-4">Romantic Date Planner</h1>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Plan the perfect romantic date with curated locations, activities, and interactive maps.
-              Find the ideal spot for a memorable evening together. Get directions and discover hidden gems near you.
+              Find the ideal spot for a memorable evening together.
             </p>
           </div>
         </div>
@@ -210,15 +144,9 @@ export default function DatePlanner() {
                   Choose Your Perfect Date Spot
                 </h2>
               </div>
-                <div className="p-6">
-                  {isLoadingPlaces && (
-                    <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600 mx-auto mb-4"></div>
-                      <p className="text-gray-600">Finding romantic places near you...</p>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-1 gap-4">
-                    {dateLocations.map((location, index) => (
+              <div className="p-6">
+                <div className="grid grid-cols-1 gap-4">
+                  {dateLocations.map((location, index) => (
                     <div
                       key={index}
                       className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 hover:shadow-md ${

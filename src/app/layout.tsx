@@ -36,7 +36,27 @@ export default function RootLayout({
     <html lang="en">
       <body suppressHydrationWarning className={`${inter.className} min-h-screen bg-white`}>
         {hasValidClerkKeys && hasValidSupabaseKeys ? (
-          <ClerkProvider>
+          <ClerkProvider
+            appearance={{
+              variables: {
+                colorPrimary: '#3B82F6',
+              },
+              elements: {
+                formButtonPrimary: 'bg-blue-600 hover:bg-blue-700 text-white',
+                card: 'shadow-lg',
+                headerTitle: 'text-gray-900',
+                headerSubtitle: 'text-gray-600',
+                socialButtonsBlockButton: 'border border-gray-200 hover:bg-gray-50',
+                socialButtonsBlockButtonText: 'text-gray-700',
+                formFieldInput: 'border border-gray-300 focus:border-blue-500 focus:ring-blue-500',
+                footerActionLink: 'text-blue-600 hover:text-blue-700',
+              },
+            }}
+            signInFallbackRedirectUrl="/dashboard"
+            signUpFallbackRedirectUrl="/dashboard"
+            afterSignInUrl="/dashboard"
+            afterSignUpUrl="/dashboard"
+          >
           {children}
           </ClerkProvider>
         ) : (

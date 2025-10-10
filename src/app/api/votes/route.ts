@@ -87,6 +87,33 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Emit vote update via socket (non-blocking)
+    (async () => {
+      try {
+        const { getIO } = await import('@/lib/io');
+        const io = getIO();
+        if (io && !process.env.VERCEL) {
+          // Get group code for socket emission
+          const { data: group } = await supabase
+            .from('groups')
+            .select('code')
+            .eq('id', groupId)
+            .single();
+
+          if (group) {
+            io.to(groupId).emit('vote-updated', {
+              groupCode: group.code,
+              voteCounts,
+              finalisedIdx
+            });
+            console.log('Vote update emitted to group:', groupId, voteCounts);
+          }
+        }
+      } catch (error) {
+        console.error('Socket emission error:', error);
+      }
+    })();
+
     return NextResponse.json({ success: true, voteCounts, finalisedIdx });
   } catch (error) {
     console.error('Error voting:', error);

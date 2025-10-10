@@ -27,49 +27,37 @@ export async function findOptimalLocations(members: { name: string; location: st
       The group's preferred moods/tags are: ${allMoodTags.join(', ')}${preferredDateText}.
 
       ${isRomanticDate ?
-        `This appears to be a romantic date between 2 people${preferredDateText}. Suggest locations perfect for a romantic date with activities like cafes, beaches, movies, romantic walks, rooftop dining, live music venues, pottery classes, art workshops, cooking classes, etc. Focus on intimate, cozy, and memorable experiences. Consider the user's locations and suggest places that are easily accessible from their areas.` :
+        `This appears to be a romantic date between 2 people${preferredDateText}. Suggest locations perfect for a romantic date with activities like cafes, beaches, movies, romantic walks, rooftop dining, live music venues, etc. Focus on intimate, cozy, and memorable experiences.` :
         `Please find 4-5 optimal centroid meetup locations based on the groups location that are real, geocodable places (cities, towns, or well-known areas) convenient and equally fair for everyone to meet.`
       }
 
       For each location, suggest a realistic itinerary of SPECIFIC activities that people actually do when they hangout. Focus on specific, named places and activities like:
 
       ${isRomanticDate ? `
-      ROMANTIC DATE ACTIVITIES (INDIA FOCUSED - Near User Locations):
-      COZY CAFES & DATE SPOTS:
+      ROMANTIC DATE ACTIVITIES (INDIA FOCUSED):
+      CAFES & COZY SPOTS:
       - "Starbucks Coffee" or "Cafe Coffee Day" (romantic cafes)
       - "Chaayos" or "Chai Point" (cozy tea spots)
       - "The Piano Man Jazz Club" or "Hard Rock Cafe" (live music venues)
       - "Rooftop Cafe" or "Sky Lounge" (romantic dining)
       - "Book Cafe" or "Literature Lounge" (quiet reading spots)
-      - "Art Cafe" or "Creative Space" (artistic dates)
 
-      CREATIVE & HANDS-ON DATES:
-      - "Pottery Class" or "Ceramic Workshop" (creative dates)
-      - "Art Workshop" or "Painting Session" (artistic experiences)
-      - "Cooking Class" or "Culinary Workshop" (food experiences)
-      - "Wine Tasting" or "Brewery Tour" (sophisticated dates)
-      - "Photography Walk" or "Photo Session" (memorable experiences)
-
-      ROMANTIC OUTDOOR SPOTS:
+      BEACHES & OUTDOOR ROMANCE:
       - "Juhu Beach" or "Marine Drive" (romantic walks)
       - "Lodhi Garden" or "Central Park" (peaceful outdoor spots)
       - "Nehru Planetarium" or "Observatory" (romantic stargazing)
       - "Boat Ride" or "Cruise" (romantic water activities)
-      - "Picnic Spot" or "Garden Cafe" (outdoor dining)
 
       ENTERTAINMENT FOR COUPLES:
       - "PVR Cinemas" or "INOX" (romantic movies)
       - "Escape Room India" or "Breakout" (fun challenges)
       - "Karaoke Lounge" or "Singing Cafe" (fun activities)
-      - "Comedy Show" or "Stand-up Venue" (laughing together)
-      - "Live Music Venue" or "Jazz Club" (romantic evenings)
+      - "Art Gallery" or "Museum Cafe" (cultural experiences)
 
-      SWEET TREATS & DESSERTS:
+      SWEET TREATS:
       - "Cream Stone" or "Baskin Robbins" (ice cream dates)
       - "Chocolate Room" or "Dessert Cafe" (sweet treats)
       - "Wine Bar" or "Cocktail Lounge" (romantic drinks)
-      - "Patisserie" or "Bakery Cafe" (sweet dates)
-      - "Tea House" or "Tea Ceremony" (cultural experiences)
       ` : `
       SPECIFIC ACTIVITIES (use exact names) - INDIA FOCUSED:
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
@@ -13,23 +13,6 @@ export default function JoinGroup() {
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isAutoJoining, setIsAutoJoining] = useState(false);
-
-  // Check for invite link with code parameter
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const inviteCode = urlParams.get('code');
-
-    if (inviteCode) {
-      setCode(inviteCode.toUpperCase());
-      setIsAutoJoining(true);
-
-      // Auto-join after a short delay to show the code was pre-filled
-      setTimeout(() => {
-        handleJoinGroup({ preventDefault: () => {} } as React.FormEvent);
-      }, 1500);
-    }
-  }, []);
   // Authentication is handled by Clerk middleware
 
   const handleJoinGroup = async (e: React.FormEvent) => {
@@ -85,26 +68,16 @@ export default function JoinGroup() {
               </p>
             </div>
 
-            {isAutoJoining ? (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+                <div className="flex items-center">
+                  <span className="text-red-500 mr-2">⚠️</span>
+                  {error}
                 </div>
-                <p className="text-gray-600 mb-2">Auto-joining group...</p>
-                <p className="text-sm text-gray-500">Code: {code}</p>
               </div>
-            ) : (
-              <>
-                {error && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-                    <div className="flex items-center">
-                      <span className="text-red-500 mr-2">⚠️</span>
-                      {error}
-                    </div>
-                  </div>
-                )}
+            )}
 
-                <form onSubmit={handleJoinGroup} className="space-y-6">
+            <form onSubmit={handleJoinGroup} className="space-y-6">
               <Input
                 label="Group Code"
                 value={code}
@@ -127,11 +100,11 @@ export default function JoinGroup() {
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                     Joining...
                   </div>
-                ) : 'Join Group'}
+                ) : (
+                  'Join Group'
+                )}
               </Button>
-                </form>
-              </>
-            )}
+            </form>
 
             <div className="mt-8 text-center">
               <Link href="/" className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors">

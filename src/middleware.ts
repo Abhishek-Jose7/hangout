@@ -1,16 +1,23 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
 const isProtectedRoute = createRouteMatcher([
+  '/dashboard(.*)',
   '/group(.*)',
-  '/create',
-  '/api/(.*)',
-])
+  '/create(.*)',
+  '/date(.*)'
+]);
 
-export default clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) {
-    await auth.protect()
-  }
-})
+export default clerkMiddleware((auth, req) => {
+  // Route protection handled by individual pages
+}, {
+  // Safari-compatible configuration
+  signInUrl: '/sign-in',
+  signUpUrl: '/sign-up',
+  afterSignInUrl: '/dashboard',
+  afterSignUpUrl: '/dashboard',
+  // Ensure compatibility with Safari's third-party cookie restrictions
+  publishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+});
 
 export const config = {
   matcher: [
@@ -19,4 +26,4 @@ export const config = {
     // Always run for API routes
     '/(api|trpc)(.*)',
   ],
-}
+};

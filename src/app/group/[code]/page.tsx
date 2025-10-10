@@ -8,13 +8,11 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { io, Socket } from 'socket.io-client'; // eslint-disable-line @typescript-eslint/no-unused-vars
 import InteractiveMap from '@/components/InteractiveMap';
-import Timeline from '@/components/Timeline';
 import { useSocket } from '@/hooks/useSocket';
 import { useRealtime } from '@/hooks/useRealtime';
 import RealtimeStatus from '@/components/RealtimeStatus';
 import { useFetchWithAuth } from '@/lib/fetchWithAuth';
 import { useUser } from '@clerk/nextjs';
-import SessionManager from '@/lib/sessionManager';
 import styles from './page.module.css';
 
 type ItineraryDetail = {
@@ -39,6 +37,14 @@ type Group = {
   id: string;
   code: string;
   members: Member[];
+  voteCounts?: Record<string, number>;
+  finalisedIdx?: number | null;
+  locations?: Array<{
+    name: string;
+    description: string;
+    activities: string[];
+    estimatedCost: number;
+  }>;
 };
 
 type Location = {
@@ -56,7 +62,6 @@ export default function GroupPage() {
   const { socket, isSocketAvailable } = useSocket();
   const { subscribeToGroup, unsubscribeFromGroup } = useRealtime();
   const { user } = useUser();
-  const sessionManager = SessionManager.getInstance();
   // Authentication is handled by Clerk middleware in API routes
   const fetchWithAuth = useFetchWithAuth();
 
@@ -68,61 +73,30 @@ export default function GroupPage() {
   const code = params?.code ? String(params.code) : '';
 
   useEffect(() => {
-    if (user?.id) {
-      sessionManager.setCurrentUserId(user.id);
+    if (typeof window !== 'undefined') {
+      // Try to restore session from localStorage
+      const storedSession = localStorage.getItem('userSession');
+      const storedMemberId = localStorage.getItem('memberId');
 
-      // Check if user has existing session for this group
-      const userSession = sessionManager.getCurrentUserSession();
-      if (userSession && userSession.groups.includes(code)) {
-        if (userSession.memberId) {
-          setMemberId(userSession.memberId);
+      if (storedSession) {
+        try {
+          const session = JSON.parse(storedSession);
+          // Only restore if it's for the current group
+          if (session.groupCode === code) {
+            setMemberId(session.memberId);
+            setHasJoined(true);
+          }
+        } catch (error) {
+          console.error('Error parsing stored session:', error);
         }
-        setHasJoined(true);
+      } else if (storedMemberId) {
+        // Fallback to old method for backward compatibility
+        setMemberId(storedMemberId);
       }
     }
-  }, [code, user?.id, sessionManager]);
+  }, [code]);
 
-  // Generate timeline for winning location
-  const generateTimeline = (location: Location) => {
-    const now = new Date();
-    const timelineEvents = [
-      {
-        time: new Date(now.getTime() + 2 * 60 * 60 * 1000), // 2 hours from now
-        title: 'Meet at Location',
-        description: `Arrive at ${location.name}`,
-        icon: '🚶',
-        color: 'blue'
-      }
-    ];
-
-    // Add activities from the itinerary
-    if (location.itineraryDetails) {
-      location.itineraryDetails.forEach((item, index) => {
-        const activityTime = new Date(now.getTime() + (index + 1) * 90 * 60 * 1000); // Every 1.5 hours
-        timelineEvents.push({
-          time: activityTime,
-          title: item.name,
-          description: item.address,
-          icon: getActivityIcon(item.name),
-          color: 'green'
-        });
-      });
-    }
-
-    setTimeline(timelineEvents);
-  };
-
-  // Get activity icon based on name
-  const getActivityIcon = (activityName: string) => {
-    if (activityName.toLowerCase().includes('coffee') || activityName.toLowerCase().includes('cafe')) return '☕';
-    if (activityName.toLowerCase().includes('cinema') || activityName.toLowerCase().includes('movie')) return '🎬';
-    if (activityName.toLowerCase().includes('restaurant') || activityName.toLowerCase().includes('food')) return '🍽️';
-    if (activityName.toLowerCase().includes('park') || activityName.toLowerCase().includes('garden')) return '🌳';
-    if (activityName.toLowerCase().includes('beach')) return '🏖️';
-    return '📍';
-  };
-
-  // Voting handler with live updates
+  // Voting handler
   const handleVote = async (idx: number) => {
     if (!group?.id || !memberId) {
       console.error('Cannot vote: missing group ID or member ID');
@@ -152,23 +126,15 @@ export default function GroupPage() {
 
         console.log('Vote cast successfully:', data, `Total members: ${totalMembers}, Total votes: ${totalVotes}`);
 
-        // Check if all members have voted
+        // Only show as finalized if ALL members have voted (consensus)
         if (totalVotes >= totalMembers && data.finalisedIdx !== null) {
-          console.log('All members have voted - consensus reached!');
-
-          // Generate timeline for the winning location
-          const winningLocation = locations[data.finalisedIdx];
-          if (winningLocation) {
-            generateTimeline(winningLocation);
-          }
+          console.log('All members have voted - showing final itinerary');
         }
       } else {
         console.error('Vote failed:', data.error);
-        setError(data.error || 'Failed to cast vote');
       }
     } catch (error) {
       console.error('Error voting:', error);
-      setError('Failed to cast vote. Please try again.');
     }
   };
   const [group, setGroup] = useState<Group | null>(null);
@@ -192,7 +158,6 @@ export default function GroupPage() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [isLoadingLocations, setIsLoadingLocations] = useState<boolean>(false);
   const [isGeneratingLocations, setIsGeneratingLocations] = useState<boolean>(false);
-  const [timeline, setTimeline] = useState<{ time: Date; title: string; description: string; icon: string; color: string }[]>([]);
   
   // Fetch group data
   useEffect(() => {
@@ -252,47 +217,64 @@ export default function GroupPage() {
 
     if (isSocketAvailable === true && socket) {
       // Use Socket.io for real-time updates
-      console.log('Setting up Socket.io real-time updates for group:', group.id);
     socket.emit('join-group', group.id);
-
+      
     const onGroupUpdated = (updatedGroup: Group) => {
-        console.log('Socket.io group updated:', updatedGroup.code);
         if (updatedGroup.code === code) {
           setGroup(updatedGroup);
-          // Also update vote counts if they exist
-          if (updatedGroup.members) {
-            // Recalculate vote counts based on current votes
-            // This would require fetching votes from the API
+          // Update vote counts and finalized index from group data
+          if (updatedGroup.voteCounts) {
+            setVoteCounts(updatedGroup.voteCounts);
+          }
+          if (updatedGroup.finalisedIdx !== undefined) {
+            setFinalisedIdx(updatedGroup.finalisedIdx);
           }
         }
       };
-
-    const onMemberJoined = (updatedGroup: Group) => {
-        console.log('Socket.io member joined:', updatedGroup.code);
-        if (updatedGroup.code === code) {
-          setGroup(updatedGroup);
+      
+      const onMemberJoined = (data: { groupCode: string; member: { id: string; name: string; location: string; budget: number } }) => {
+        if (data.groupCode === code) {
+          console.log('New member joined:', data.member.name);
+          // Member join will be handled by group-updated event
         }
-    };
+      };
+
+      const onVoteUpdated = (data: { groupCode: string; voteCounts: Record<string, number>; finalisedIdx: number }) => {
+        if (data.groupCode === code) {
+          setVoteCounts(data.voteCounts);
+          setFinalisedIdx(data.finalisedIdx);
+          
+          // Show notification for vote updates
+          const totalVotes = Object.values(data.voteCounts).reduce((sum: number, count: unknown) => sum + (count as number), 0);
+          console.log('Vote updated! Total votes:', totalVotes);
+        }
+      };
 
     socket.on('group-updated', onGroupUpdated);
     socket.on('member-joined', onMemberJoined);
-
+      socket.on('vote-updated', onVoteUpdated);
+      
     return () => {
-        console.log('Cleaning up Socket.io listeners');
+        socket.emit('leave-group', group.id);
       socket.off('group-updated', onGroupUpdated);
       socket.off('member-joined', onMemberJoined);
-    };
+        socket.off('vote-updated', onVoteUpdated);
+      };
     } else if (isSocketAvailable === false) {
       // Use Supabase real-time as fallback
-      console.log('Setting up Supabase real-time updates for group:', group.id);
-
-      const handleUpdate = async (payload: unknown) => {
-        console.log('Supabase real-time update received:', payload);
+      const handleUpdate = async () => {
         try {
           const response = await fetch(`/api/groups/${code}`);
           const data = await response.json();
           if (data.success && data.group) {
             setGroup(data.group);
+            // Update vote counts and finalized index from group data
+            if (data.group.voteCounts) {
+              setVoteCounts(data.group.voteCounts);
+            }
+            if (data.group.finalisedIdx !== undefined) {
+              setFinalisedIdx(data.group.finalisedIdx);
+            }
           }
         } catch (error) {
           console.error('Real-time update error:', error);
@@ -300,67 +282,12 @@ export default function GroupPage() {
       };
 
       subscribeToGroup(group.id, handleUpdate);
-
+      
       return () => {
-        console.log('Cleaning up Supabase subscription');
         unsubscribeFromGroup(group.id);
       };
     }
   }, [socket, group?.id, code, isSocketAvailable, subscribeToGroup, unsubscribeFromGroup]);
-
-  // Apply smart filters to locations
-  const applyFilters = (_filters: { sortBy: string; maxDistance?: number; minRating?: number; maxBudget?: number; includeHiddenGems?: boolean }) => {
-    if (!locations.length) return;
-
-    let filtered = [...locations];
-
-    // Apply distance filter
-    if (_filters.maxDistance && userLocation) {
-      // This would require distance calculation - for now just keep all
-    }
-
-    // Apply rating filter
-    if (_filters.minRating) {
-      filtered = filtered.filter(location =>
-        location.itineraryDetails?.some(item => item.rating && item.rating >= (_filters.minRating || 0)) || false
-      );
-    }
-
-    // Apply budget filter
-    if (_filters.maxBudget) {
-      filtered = filtered.filter(location => location.estimatedCost <= (_filters.maxBudget || Infinity));
-    }
-
-    // Apply sorting
-    switch (_filters.sortBy) {
-      case 'rating':
-        filtered.sort((a, b) => {
-          const aRating = Math.max(...(a.itineraryDetails?.map(item => item.rating || 0) || [0]));
-          const bRating = Math.max(...(b.itineraryDetails?.map(item => item.rating || 0) || [0]));
-          return bRating - aRating;
-        });
-        break;
-      case 'budget':
-        filtered.sort((a, b) => a.estimatedCost - b.estimatedCost);
-        break;
-      case 'hidden-gems':
-        // Prioritize locations with high ratings but not well-known chains
-        filtered.sort((a, b) => {
-          const aScore = a.itineraryDetails?.reduce((sum, item) =>
-            sum + (item.rating || 0) + (item.priceLevel || 0), 0) || 0;
-          const bScore = b.itineraryDetails?.reduce((sum, item) =>
-            sum + (item.rating || 0) + (item.priceLevel || 0), 0) || 0;
-          return bScore - aScore;
-        });
-        break;
-      default: // distance
-        // Keep original order for distance-based sorting
-        break;
-    }
-
-    // Currently not setting filtered locations - this function is kept for future feature
-    console.log('Filtered locations:', filtered);
-  };
 
   // Function to get user location and calculate distances
   const getLocationAndDistances = async () => {
@@ -496,13 +423,17 @@ export default function GroupPage() {
       }
       
       // Persist memberId and session for later voting
-      if (data.member?.id) {
+      if (typeof window !== 'undefined' && data.member?.id) {
+        localStorage.setItem('memberId', data.member.id);
         setMemberId(data.member.id);
 
-        // Update session manager
-        if (user?.id) {
-          sessionManager.updateUserSession(user.id, code);
-        }
+        // Store session for this group
+        const session = {
+          memberId: data.member.id,
+          groupCode: code,
+          joinedAt: new Date().toISOString()
+        };
+        localStorage.setItem('userSession', JSON.stringify(session));
       }
 
       console.log("Successfully joined group:", data);
@@ -553,9 +484,9 @@ export default function GroupPage() {
                } else {
         setError(data.error || 'Failed to find optimal locations');
                }
-        setLocations([]);
-        return;
-      }
+               setLocations([]);
+               return;
+             }
 
              if (!data.locations || data.locations.length === 0) {
                setError('No locations found. Please try again.');
@@ -624,36 +555,31 @@ export default function GroupPage() {
               </div>
           <div>
                 <h1 className="text-3xl font-bold text-gray-900">Group {code}</h1>
-                <p className="text-gray-600 mt-1">Share this code with friends to join your hangout</p>
-
-                {/* Smart Invite Link */}
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-blue-800">Smart Invite Link</span>
-                    <button
-                      onClick={() => {
-                        const inviteUrl = `${window.location.origin}/join?code=${code}`;
-                        navigator.clipboard.writeText(inviteUrl);
-                        // Show success feedback
-                        const feedback = document.createElement('div');
-                        feedback.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-                        feedback.textContent = 'Invite link copied!';
-                        document.body.appendChild(feedback);
-                        setTimeout(() => document.body.removeChild(feedback), 3000);
-                      }}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                    >
-                      📋 Copy Link
-                    </button>
-          </div>
-                  <div className="text-xs text-blue-600 font-mono bg-white px-2 py-1 rounded border">
-                    {`${window.location.origin}/join?code=${code}`}
-                  </div>
-                  <p className="text-xs text-blue-700 mt-1">
-                    Anyone with this link can join instantly - no code entry needed!
-                  </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-gray-600 mt-1">Share this code with friends to join your hangout</p>
+                  <Button
+                    onClick={() => {
+                      const shareUrl = `${window.location.origin}/share/${code}`;
+                      if (navigator.share) {
+                        navigator.share({
+                          title: `Join my hangout group!`,
+                          text: `Join my hangout group and let's plan something fun together!`,
+                          url: shareUrl
+                        });
+                      } else {
+                        navigator.clipboard.writeText(shareUrl);
+                        alert('Share link copied to clipboard!');
+                      }
+                    }}
+                    variant="outline"
+                    className="text-xs px-3 py-1"
+                  >
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                    </svg>
+                    Share Link
+                  </Button>
                 </div>
-
                 <div className="mt-2">
                   <RealtimeStatus groupId={group?.id} />
                 </div>
@@ -735,7 +661,7 @@ export default function GroupPage() {
                           Find Optimal Locations
                         </div>
                       )}
-                </Button>
+                    </Button>
 
                     {locations.length > 0 && (
                       <Button
@@ -765,119 +691,146 @@ export default function GroupPage() {
           
           {/* Right Column - Join Form and Itineraries */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Join Form Card - Only show if user hasn't joined yet */}
-            {!hasJoined && (
-              <div className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden ${styles.animateSlideInRight}`}>
-                <div className="bg-blue-600 px-6 py-4">
-                  <h2 className="text-xl font-semibold text-white flex items-center">
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                    </svg>
-                    Join this Group
-                  </h2>
-                </div>
-                <div className="p-6">
-                  {joinError && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
-                      <div className="flex items-center">
-                        <svg className="w-5 h-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {joinError}
-                      </div>
-                    </div>
-                  )}
-                  <form onSubmit={handleJoinGroup} className="space-y-5">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Your Name</label>
-                      <Input
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Enter your name"
-                        fullWidth
-                        required
-                        disabled={isJoining}
-                        className="rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Your Location</label>
-                      <Input
-                        value={location}
-                        onChange={(e) => setLocation(e.target.value)}
-                        placeholder="City, State or Address"
-                        fullWidth
-                        required
-                        disabled={isJoining}
-                        className="rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Your Budget (in ₹)</label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={budget}
-                        onChange={(e) => setBudget(e.target.value)}
-                        placeholder="Enter your budget"
-                        fullWidth
-                        required
-                        disabled={isJoining}
-                        className="rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-3">Mood Tags <span className="text-xs text-gray-500">(select at least one)</span></label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {['Adventure', 'Relaxation', 'Culture', 'Food', 'Nature', 'Shopping', 'Nightlife'].map(tag => (
-                          <button
-                            type="button"
-                            key={tag}
-                            className={`px-3 py-2 rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                              moodTags.includes(tag)
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-blue-50 hover:border-blue-400'
-                            }`}
-                            onClick={() => {
-                              if (!isJoining) {
-                                setMoodTags(moodTags.includes(tag) ? moodTags.filter(t => t !== tag) : [...moodTags, tag]);
-                              }
-                            }}
-                            disabled={isJoining}
-                            aria-pressed={moodTags.includes(tag)}
-                          >
-                            <div className="flex items-center justify-center">
-                              <span className="text-sm font-medium">{tag}</span>
-                              {moodTags.includes(tag) && <span className="ml-2 text-xs">✓</span>}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <Button
-                      type="submit"
-                      fullWidth
-                      disabled={isJoining || !name.trim() || !location.trim() || !budget.trim() || moodTags.length === 0}
-                      className={`w-full py-3 rounded-lg font-semibold transition-all duration-200 ${
-                        isJoining || !name.trim() || !location.trim() || !budget.trim() || moodTags.length === 0
-                          ? 'opacity-60 cursor-not-allowed bg-gray-400'
-                          : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md'
-                      }`}
-                    >
-                      {isJoining ? (
-                        <div className="flex items-center justify-center">
-                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                          Joining...
-                        </div>
-                      ) : (
-                        'Join Group'
-                      )}
-                    </Button>
-                  </form>
-                </div>
+            {/* Join Form Card */}
+            <div className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden ${styles.animateSlideInRight}`}>
+              <div className="bg-blue-600 px-6 py-4">
+                <h2 className="text-xl font-semibold text-white flex items-center">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                  Join this Group
+                </h2>
               </div>
+              <div className="p-6">
+
+                {hasJoined ? (
+                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-4 rounded-xl mb-6">
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center mr-3">
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-semibold">Successfully joined!</p>
+                        <p className="text-sm text-green-600">You can now vote on locations and participate in group decisions.</p>
+              </div>
+              </div>
+              </div>
+            ) : (
+              <>
+                {joinError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+                        <div className="flex items-center">
+                          <svg className="w-5 h-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                    {joinError}
+                        </div>
+                  </div>
+                )}
+                {joinSuccess && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
+                        <div className="flex items-center">
+                          <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                    Successfully joined the group!
+                        </div>
+                  </div>
+                )}
+                    <form onSubmit={handleJoinGroup} className="space-y-5">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Your Name</label>
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                          placeholder="Enter your name"
+                    fullWidth
+                    required
+                    disabled={isJoining}
+                          className="rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Your Location</label>
+                  <Input
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="City, State or Address"
+                    fullWidth
+                    required
+                    disabled={isJoining}
+                          className="rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Your Budget (in ₹)</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
+                          placeholder="Enter your budget"
+                    fullWidth
+                    required
+                    disabled={isJoining}
+                          className="rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                      </div>
+                  <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-3">Mood Tags <span className="text-xs text-gray-500">(select at least one)</span></label>
+                        <div className="grid grid-cols-2 gap-2">
+                      {['Adventure', 'Relaxation', 'Culture', 'Food', 'Nature', 'Shopping', 'Nightlife'].map(tag => (
+                        <button
+                          type="button"
+                          key={tag}
+                              className={`px-3 py-2 rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                                moodTags.includes(tag)
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                  : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-blue-50 hover:border-blue-400'
+                              }`}
+                          onClick={() => {
+                            if (!isJoining) {
+                              setMoodTags(moodTags.includes(tag) ? moodTags.filter(t => t !== tag) : [...moodTags, tag]);
+                            }
+                          }}
+                          disabled={isJoining}
+                          aria-pressed={moodTags.includes(tag)}
+                        >
+                              <div className="flex items-center justify-center">
+                                <span className="text-sm font-medium">{tag}</span>
+                          {moodTags.includes(tag) && <span className="ml-2 text-xs">✓</span>}
+                              </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Button 
+                    type="submit" 
+                    fullWidth 
+                    disabled={isJoining || !name.trim() || !location.trim() || !budget.trim() || moodTags.length === 0}
+                        className={`w-full py-3 rounded-lg font-semibold transition-all duration-200 ${
+                          isJoining || !name.trim() || !location.trim() || !budget.trim() || moodTags.length === 0
+                            ? 'opacity-60 cursor-not-allowed bg-gray-400'
+                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md'
+                        }`}
+                      >
+                        {isJoining ? (
+                          <div className="flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                            Joining...
+                          </div>
+                        ) : (
+                          'Join Group'
+                        )}
+                  </Button>
+                </form>
+              </>
             )}
+          </div>
+            </div>
 
             {/* Itineraries Section */}
             {locations.length === 0 && group?.members && group.members.length >= 2 && (
@@ -888,15 +841,15 @@ export default function GroupPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-      </div>
+                  </div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">Ready to Find Locations?</h3>
                   <p className="text-gray-600 mb-6">Click the &ldquo;Find Optimal Locations&rdquo; button to get AI-powered suggestions for your group.</p>
                 </div>
               </div>
             )}
-      
+
             {/* Optimal Locations - Show only winning itinerary when decided */}
-      {locations.length > 0 && (
+            {locations.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="bg-blue-600 px-8 py-6">
                   <div className="flex items-center justify-between">
@@ -951,17 +904,6 @@ export default function GroupPage() {
                         </div>
                         <div className="p-6">
                           <p className="text-gray-600 mb-6 leading-relaxed">{locations[finalisedIdx]?.description}</p>
-
-                          {/* Timeline */}
-                          <div className="mb-6">
-                            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                              <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              Plan Timeline
-                            </h4>
-                            <Timeline events={timeline} />
-                          </div>
 
                           <div className="bg-gray-50 rounded-lg p-6 mb-6">
                             <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
@@ -1146,7 +1088,7 @@ export default function GroupPage() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                   </svg>
                                   <span className="font-semibold">{voteCounts[index] || 0} votes</span>
-                </div>
+                                </div>
                               </div>
                             </div>
                 </div>
@@ -1211,13 +1153,13 @@ export default function GroupPage() {
                            </div>
                          )}
                       </div>
-                      </div>
                     </div>
-                  ))}
-                </div>
-                          </div>
               </div>
             ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   );
                   })()}
