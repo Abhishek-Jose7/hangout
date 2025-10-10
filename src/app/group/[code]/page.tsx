@@ -8,8 +8,6 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { io, Socket } from 'socket.io-client'; // eslint-disable-line @typescript-eslint/no-unused-vars
 import InteractiveMap from '@/components/InteractiveMap';
-import AnimatedVoting from '@/components/AnimatedVoting';
-import SmartFilters from '@/components/SmartFilters';
 import Timeline from '@/components/Timeline';
 import { useSocket } from '@/hooks/useSocket';
 import { useRealtime } from '@/hooks/useRealtime';
@@ -76,7 +74,9 @@ export default function GroupPage() {
       // Check if user has existing session for this group
       const userSession = sessionManager.getCurrentUserSession();
       if (userSession && userSession.groups.includes(code)) {
-        setMemberId(userSession.memberId);
+        if (userSession.memberId) {
+          setMemberId(userSession.memberId);
+        }
         setHasJoined(true);
       }
     }
@@ -160,7 +160,6 @@ export default function GroupPage() {
           const winningLocation = locations[data.finalisedIdx];
           if (winningLocation) {
             generateTimeline(winningLocation);
-            setShowTimeline(true);
           }
         }
       } else {
@@ -193,9 +192,7 @@ export default function GroupPage() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [isLoadingLocations, setIsLoadingLocations] = useState<boolean>(false);
   const [isGeneratingLocations, setIsGeneratingLocations] = useState<boolean>(false);
-  const [filteredLocations, setFilteredLocations] = useState<Location[]>([]);
-  const [showTimeline, setShowTimeline] = useState<boolean>(false);
-  const [timeline, setTimeline] = useState<any[]>([]);
+  const [timeline, setTimeline] = useState<{ time: Date; title: string; description: string; icon: string; color: string }[]>([]);
   
   // Fetch group data
   useEffect(() => {
@@ -312,30 +309,30 @@ export default function GroupPage() {
   }, [socket, group?.id, code, isSocketAvailable, subscribeToGroup, unsubscribeFromGroup]);
 
   // Apply smart filters to locations
-  const applyFilters = (filters: any) => {
+  const applyFilters = (_filters: { sortBy: string; maxDistance?: number; minRating?: number; maxBudget?: number; includeHiddenGems?: boolean }) => {
     if (!locations.length) return;
 
     let filtered = [...locations];
 
     // Apply distance filter
-    if (filters.maxDistance && userLocation) {
+    if (_filters.maxDistance && userLocation) {
       // This would require distance calculation - for now just keep all
     }
 
     // Apply rating filter
-    if (filters.minRating) {
+    if (_filters.minRating) {
       filtered = filtered.filter(location =>
-        location.itineraryDetails?.some(item => item.rating && item.rating >= filters.minRating) || false
+        location.itineraryDetails?.some(item => item.rating && item.rating >= (_filters.minRating || 0)) || false
       );
     }
 
     // Apply budget filter
-    if (filters.maxBudget) {
-      filtered = filtered.filter(location => location.estimatedCost <= filters.maxBudget);
+    if (_filters.maxBudget) {
+      filtered = filtered.filter(location => location.estimatedCost <= (_filters.maxBudget || Infinity));
     }
 
     // Apply sorting
-    switch (filters.sortBy) {
+    switch (_filters.sortBy) {
       case 'rating':
         filtered.sort((a, b) => {
           const aRating = Math.max(...(a.itineraryDetails?.map(item => item.rating || 0) || [0]));
@@ -361,7 +358,8 @@ export default function GroupPage() {
         break;
     }
 
-    setFilteredLocations(filtered);
+    // Currently not setting filtered locations - this function is kept for future feature
+    console.log('Filtered locations:', filtered);
   };
 
   // Function to get user location and calculate distances

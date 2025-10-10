@@ -4,6 +4,7 @@ interface UserSession {
   groups: string[];
   lastActive: string;
   deviceId: string;
+  memberId?: string;
 }
 
 class SessionManager {
@@ -25,6 +26,11 @@ class SessionManager {
   }
 
   private generateDeviceId(): string {
+    if (typeof window === 'undefined') {
+      // Server-side rendering - return a temporary ID
+      return 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+    
     let deviceId = localStorage.getItem(this.DEVICE_ID_KEY);
     if (!deviceId) {
       deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -35,6 +41,11 @@ class SessionManager {
 
   private loadSessions(): void {
     try {
+      if (typeof window === 'undefined') {
+        // Server-side rendering - skip localStorage operations
+        return;
+      }
+      
       const stored = localStorage.getItem(this.STORAGE_KEY);
       if (stored) {
         const sessions = JSON.parse(stored);
@@ -47,6 +58,11 @@ class SessionManager {
 
   private saveSessions(): void {
     try {
+      if (typeof window === 'undefined') {
+        // Server-side rendering - skip localStorage operations
+        return;
+      }
+      
       const sessionsObj = Object.fromEntries(this.sessions);
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(sessionsObj));
     } catch (error) {
@@ -89,10 +105,16 @@ class SessionManager {
   public getCurrentUserId(): string | null {
     // This would typically come from your auth system (Clerk)
     // For now, we'll use a simple approach
+    if (typeof window === 'undefined') {
+      return null;
+    }
     return localStorage.getItem('current_user_id');
   }
 
   public setCurrentUserId(userId: string): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
     localStorage.setItem('current_user_id', userId);
   }
 

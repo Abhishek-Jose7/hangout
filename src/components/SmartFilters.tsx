@@ -13,7 +13,7 @@ interface SmartFiltersProps {
   memberLocations?: string[];
 }
 
-export default function SmartFilters({ onFiltersChange, memberLocations = [] }: SmartFiltersProps) {
+export default function SmartFilters({ onFiltersChange }: SmartFiltersProps) {
   const [sortBy, setSortBy] = useState<'distance' | 'rating' | 'budget' | 'hidden-gems'>('distance');
   const [maxDistance, setMaxDistance] = useState<number>(50);
   const [minRating, setMinRating] = useState<number>(3);
@@ -33,6 +33,7 @@ export default function SmartFilters({ onFiltersChange, memberLocations = [] }: 
   // Update filters when any value changes
   React.useEffect(() => {
     handleFilterChange();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortBy, maxDistance, minRating, maxBudget, includeHiddenGems]);
 
   const filterOptions = [
@@ -59,7 +60,7 @@ export default function SmartFilters({ onFiltersChange, memberLocations = [] }: 
             {filterOptions.map((option) => (
               <button
                 key={option.value}
-                onClick={() => setSortBy(option.value as any)}
+                onClick={() => setSortBy(option.value as 'distance' | 'rating' | 'budget' | 'hidden-gems')}
                 className={`px-3 py-2 rounded-lg border transition-all duration-200 ${
                   sortBy === option.value
                     ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
