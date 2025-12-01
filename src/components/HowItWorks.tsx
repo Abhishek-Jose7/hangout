@@ -1,80 +1,88 @@
+import Link from 'next/link';
+import Button from './ui/Button';
+
 export default function HowItWorks() {
   const steps = [
     {
-      number: '1️⃣',
-      title: 'Create or Join a Group',
-      description: 'Start a new group or join an existing one with a simple code.'
+      number: '01',
+      title: 'Create or Join',
+      description: 'Start a new group or join an existing one with a simple code. No sign-up required for guests.'
     },
     {
-      number: '2️⃣',
+      number: '02',
       title: 'Add Preferences',
-      description: 'Share your location, budget, and vibe preferences with the group.'
+      description: 'Share your location, budget, and vibe preferences. We keep it private and secure.'
     },
     {
-      number: '3️⃣',
+      number: '03',
       title: 'Get AI Suggestions',
-      description: 'Our smart algorithm finds the perfect meetup spots for everyone.'
+      description: 'Our smart algorithm finds the perfect meetup spots that work for everyone in the group.'
     },
     {
-      number: '4️⃣',
+      number: '04',
       title: 'Vote & Finalize',
-      description: 'Vote on suggestions and finalize your perfect hangout spot together.'
+      description: 'Vote on suggestions and finalize your perfect hangout spot together in seconds.'
     }
   ];
 
   return (
-    <section id="how-it-works" className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
+    <section id="how-it-works" className="py-24 px-4 sm:px-6 lg:px-8 bg-slate-50">
       <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+        <div className="text-center mb-20">
+          <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-6">
             How it works
           </h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <p className="text-lg text-slate-600 max-w-2xl mx-auto">
             Simple steps to plan the perfect hangout with friends.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
           {steps.map((step, index) => (
-            <div key={index} className={`text-center animate-fade-in-up ${index === 0 ? 'animate-delay-100' : index === 1 ? 'animate-delay-200' : index === 2 ? 'animate-delay-300' : 'animate-delay-400'}`}>
-              <div className="mb-6">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 text-white text-2xl rounded-full mb-4 shadow-lg">
+            <div key={index} className={`relative group animate-fade-in-up ${index === 0 ? 'delay-100' : index === 1 ? 'delay-200' : index === 2 ? 'delay-300' : 'delay-400'}`}>
+              <div className="bg-white rounded-2xl p-8 h-full border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="text-5xl font-bold text-slate-100 mb-6 group-hover:text-indigo-50 transition-colors">
                   {step.number}
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                <h3 className="text-xl font-bold text-slate-900 mb-3">
                   {step.title}
                 </h3>
-                <p className="text-gray-600 leading-relaxed">
+                <p className="text-slate-600 leading-relaxed">
                   {step.description}
                 </p>
               </div>
 
-              {/* Connecting line for desktop */}
+              {/* Connector line for desktop */}
               {index < steps.length - 1 && (
-                <div className="hidden lg:block absolute top-8 left-full w-full h-0.5 bg-blue-200 transform translate-x-8"></div>
+                <div className="hidden lg:block absolute top-1/2 -right-4 w-8 h-0.5 bg-slate-200 -translate-y-1/2 z-10"></div>
               )}
             </div>
           ))}
         </div>
 
         {/* Call to action */}
-        <div className="text-center mt-16 animate-fade-in-up animate-delay-400">
-          <p className="text-gray-600 mb-6">
-            Ready to start planning your next hangout?
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              href="/create"
-              className="inline-flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl"
-            >
-              Get Started
-            </a>
-            <a
-              href="/join"
-              className="inline-flex items-center justify-center px-6 py-3 border-2 border-gray-300 hover:border-blue-600 hover:bg-blue-50 text-gray-700 hover:text-blue-600 font-semibold rounded-xl transition-all duration-200"
-            >
-              Join a Group
-            </a>
+        <div className="text-center animate-fade-in-up delay-500">
+          <div className="inline-block p-1 rounded-2xl bg-white border border-slate-200 shadow-lg">
+            <div className="flex flex-col sm:flex-row gap-2 p-2">
+              <Link href="/create">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  className="w-full sm:w-auto"
+                >
+                  Start Planning
+                </Button>
+              </Link>
+              <Link href="/join">
+                <Button
+                  variant="ghost"
+                  size="lg"
+                  className="w-full sm:w-auto"
+                >
+                  Join a Group
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>

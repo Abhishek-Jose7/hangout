@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
@@ -13,7 +13,6 @@ import { useRealtime } from '@/hooks/useRealtime';
 import RealtimeStatus from '@/components/RealtimeStatus';
 import { useFetchWithAuth } from '@/lib/fetchWithAuth';
 import { useUser } from '@clerk/nextjs';
-import styles from './page.module.css';
 
 type ItineraryDetail = {
   name: string;
@@ -71,26 +70,41 @@ export default function GroupPage() {
   const { socket, isSocketAvailable } = useSocket();
   const { subscribeToGroup, unsubscribeFromGroup } = useRealtime();
   const { user } = useUser();
-  // Authentication is handled by Clerk middleware in API routes
   const fetchWithAuth = useFetchWithAuth();
 
-  // Helper to get current memberId and manage user session
   const [memberId, setMemberId] = useState<string | null>(null);
-
-  // Get the group code from params
   const params = useParams();
   const code = params?.code ? String(params.code) : '';
 
+  const [group, setGroup] = useState<Group | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>('');
+
+  const [name, setName] = useState<string>('');
+  const [location, setLocation] = useState<string>('');
+  const [budget, setBudget] = useState<string>('');
+  const [moodTags, setMoodTags] = useState<string[]>([]);
+  const [isJoining, setIsJoining] = useState<boolean>(false);
+
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [distances, setDistances] = useState<Record<string, number>>({});
+  const [isGettingLocation, setIsGettingLocation] = useState<boolean>(false);
+  const [joinError, setJoinError] = useState<string>('');
+  const [joinSuccess, setJoinSuccess] = useState<boolean>(false);
+  const [hasJoined, setHasJoined] = useState<boolean>(false);
+
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [isLoadingLocations, setIsLoadingLocations] = useState<boolean>(false);
+  const [isGeneratingLocations, setIsGeneratingLocations] = useState<boolean>(false);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Try to restore session from localStorage
       const storedSession = localStorage.getItem('userSession');
       const storedMemberId = localStorage.getItem('memberId');
 
       if (storedSession) {
         try {
           const session = JSON.parse(storedSession);
-          // Only restore if it's for the current group
           if (session.groupCode === code) {
             setMemberId(session.memberId);
             setHasJoined(true);
@@ -99,13 +113,11 @@ export default function GroupPage() {
           console.error('Error parsing stored session:', error);
         }
       } else if (storedMemberId) {
-        // Fallback to old method for backward compatibility
         setMemberId(storedMemberId);
       }
     }
   }, [code]);
 
-  // Voting handler
   const handleVote = async (idx: number) => {
     if (!group?.id || !memberId) {
       console.error('Cannot vote: missing group ID or member ID');
@@ -113,29 +125,27 @@ export default function GroupPage() {
     }
 
     try {
-    const res = await fetch('/api/votes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ groupId: group.id, memberId, itineraryIdx: idx })
-    });
+      const res = await fetch('/api/votes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupId: group.id, memberId, itineraryIdx: idx })
+      });
 
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
 
-    const data = await res.json();
-    if (data.success) {
-      setVoteCounts(data.voteCounts);
-      setFinalisedIdx(data.finalisedIdx);
-      setVotedIdx(idx);
+      const data = await res.json();
+      if (data.success) {
+        setVoteCounts(data.voteCounts);
+        setFinalisedIdx(data.finalisedIdx);
+        setVotedIdx(idx);
 
-        // Check if all members have voted (consensus reached)
         const totalMembers = group.members.length;
         const totalVotes = Object.values(data.voteCounts).reduce((sum: number, count: unknown) => sum + (count as number), 0);
 
         console.log('Vote cast successfully:', data, `Total members: ${totalMembers}, Total votes: ${totalVotes}`);
 
-        // Only show as finalized if ALL members have voted (consensus)
         if (totalVotes >= totalMembers && data.finalisedIdx !== null) {
           console.log('All members have voted - showing final itinerary');
         }
@@ -146,64 +156,51 @@ export default function GroupPage() {
       console.error('Error voting:', error);
     }
   };
-  const [group, setGroup] = useState<Group | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>('');
-  
-  const [name, setName] = useState<string>('');
-  const [location, setLocation] = useState<string>('');
-  const [budget, setBudget] = useState<string>('');
-  const [moodTags, setMoodTags] = useState<string[]>([]);
-  const [isJoining, setIsJoining] = useState<boolean>(false);
 
-  // Geolocation state
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [distances, setDistances] = useState<Record<string, number>>({});
-  const [isGettingLocation, setIsGettingLocation] = useState<boolean>(false);
-  const [joinError, setJoinError] = useState<string>('');
-  const [joinSuccess, setJoinSuccess] = useState<boolean>(false);
-  const [hasJoined, setHasJoined] = useState<boolean>(false);
-  
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [isLoadingLocations, setIsLoadingLocations] = useState<boolean>(false);
-  const [isGeneratingLocations, setIsGeneratingLocations] = useState<boolean>(false);
-  
-  // Fetch group data
+  // Helper to normalize group data from API/Socket
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const normalizeGroup = (data: any): Group => {
+    if (!data) return data;
+    return {
+      ...data,
+      members: data.members || data.Member || []
+    };
+  };
+
   useEffect(() => {
     const fetchGroup = async () => {
       try {
         setIsLoading(true);
         const response = await fetch(`/api/groups/${code}`);
-        
+
         if (!response.ok) {
           throw new Error(`Failed to fetch group: ${response.status}`);
         }
-        
+
         const data = await response.json();
-        
+
         if (!data.success) {
           throw new Error(data.error || 'Failed to fetch group');
         }
-        
+
         console.log("Group data fetched:", data.group);
-        setGroup(data.group);
-        
-        // Check if current user is already a member
-          if (data.group.members && data.group.members.length > 0 && user?.id) {
-            const currentUserMember = data.group.members.find((member: Member) => member.clerkUserId === user.id);
-            if (currentUserMember) {
+        const normalizedGroup = normalizeGroup(data.group);
+        setGroup(normalizedGroup);
+
+        if (normalizedGroup.members && normalizedGroup.members.length > 0 && user?.id) {
+          const currentUserMember = normalizedGroup.members.find((member: Member) => member.clerkUserId === user.id);
+          if (currentUserMember) {
             setHasJoined(true);
-              setMemberId(currentUserMember.id);
+            setMemberId(currentUserMember.id);
 
-              // Store session for this group
-              const session = {
-                memberId: currentUserMember.id,
-                groupCode: code,
-                joinedAt: new Date().toISOString()
-              };
-              localStorage.setItem('userSession', JSON.stringify(session));
+            const session = {
+              memberId: currentUserMember.id,
+              groupCode: code,
+              joinedAt: new Date().toISOString()
+            };
+            localStorage.setItem('userSession', JSON.stringify(session));
 
-              console.log('User is already a member:', currentUserMember);
+            console.log('User is already a member:', currentUserMember);
           }
         }
       } catch (err) {
@@ -213,25 +210,24 @@ export default function GroupPage() {
         setIsLoading(false);
       }
     };
-    
+
     if (code) {
       fetchGroup();
     }
-    
+
   }, [code, user?.id]);
 
-  // Real-time updates using Socket.io or Supabase real-time
   useEffect(() => {
     if (!group?.id) return;
 
     if (isSocketAvailable === true && socket) {
-      // Use Socket.io for real-time updates
-    socket.emit('join-group', group.id);
-      
-    const onGroupUpdated = (updatedGroup: Group) => {
+      socket.emit('join-group', group.id);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const onGroupUpdated = (updatedGroupData: any) => {
+        const updatedGroup = normalizeGroup(updatedGroupData);
         if (updatedGroup.code === code) {
           setGroup(updatedGroup);
-          // Update vote counts and finalized index from group data
           if (updatedGroup.voteCounts) {
             setVoteCounts(updatedGroup.voteCounts);
           }
@@ -240,11 +236,10 @@ export default function GroupPage() {
           }
         }
       };
-      
+
       const onMemberJoined = (data: { groupCode: string; member: { id: string; name: string; location: string; budget: number } }) => {
         if (data.groupCode === code) {
           console.log('New member joined:', data.member.name);
-          // Member join will be handled by group-updated event
         }
       };
 
@@ -252,37 +247,35 @@ export default function GroupPage() {
         if (data.groupCode === code) {
           setVoteCounts(data.voteCounts);
           setFinalisedIdx(data.finalisedIdx);
-          
-          // Show notification for vote updates
+
           const totalVotes = Object.values(data.voteCounts).reduce((sum: number, count: unknown) => sum + (count as number), 0);
           console.log('Vote updated! Total votes:', totalVotes);
         }
       };
 
-    socket.on('group-updated', onGroupUpdated);
-    socket.on('member-joined', onMemberJoined);
+      socket.on('group-updated', onGroupUpdated);
+      socket.on('member-joined', onMemberJoined);
       socket.on('vote-updated', onVoteUpdated);
-      
-    return () => {
+
+      return () => {
         socket.emit('leave-group', group.id);
-      socket.off('group-updated', onGroupUpdated);
-      socket.off('member-joined', onMemberJoined);
+        socket.off('group-updated', onGroupUpdated);
+        socket.off('member-joined', onMemberJoined);
         socket.off('vote-updated', onVoteUpdated);
       };
     } else if (isSocketAvailable === false) {
-      // Use Supabase real-time as fallback
       const handleUpdate = async () => {
         try {
           const response = await fetch(`/api/groups/${code}`);
           const data = await response.json();
           if (data.success && data.group) {
-            setGroup(data.group);
-            // Update vote counts and finalized index from group data
-            if (data.group.voteCounts) {
-              setVoteCounts(data.group.voteCounts);
+            const normalizedGroup = normalizeGroup(data.group);
+            setGroup(normalizedGroup);
+            if (normalizedGroup.voteCounts) {
+              setVoteCounts(normalizedGroup.voteCounts);
             }
-            if (data.group.finalisedIdx !== undefined) {
-              setFinalisedIdx(data.group.finalisedIdx);
+            if (normalizedGroup.finalisedIdx !== undefined) {
+              setFinalisedIdx(normalizedGroup.finalisedIdx);
             }
           }
         } catch (error) {
@@ -291,14 +284,13 @@ export default function GroupPage() {
       };
 
       subscribeToGroup(group.id, handleUpdate);
-      
+
       return () => {
         unsubscribeFromGroup(group.id);
       };
     }
   }, [socket, group?.id, code, isSocketAvailable, subscribeToGroup, unsubscribeFromGroup]);
 
-  // Function to get user location and calculate distances
   const getLocationAndDistances = async () => {
     try {
       setIsGettingLocation(true);
@@ -317,7 +309,6 @@ export default function GroupPage() {
           };
           setUserLocation(location);
 
-          // Calculate distances for all locations if we have locations
           if (locations.length > 0) {
             const distancePromises = locations.map(async (loc) => {
               try {
@@ -354,7 +345,7 @@ export default function GroupPage() {
         {
           enableHighAccuracy: true,
           timeout: 10000,
-          maximumAge: 300000 // 5 minutes
+          maximumAge: 300000
         }
       );
     } catch (error) {
@@ -365,78 +356,67 @@ export default function GroupPage() {
     }
   };
 
-  // Helper function to calculate distance between two coordinates
   const calculateDistance = (coord1: { lat: number; lng: number }, coord2: { lat: number; lng: number }): number => {
-    const R = 6371; // Earth's radius in km
+    const R = 6371;
     const dLat = (coord2.lat - coord1.lat) * Math.PI / 180;
     const dLng = (coord2.lng - coord1.lng) * Math.PI / 180;
 
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(coord1.lat * Math.PI / 180) * Math.cos(coord2.lat * Math.PI / 180) *
-              Math.sin(dLng/2) * Math.sin(dLng/2);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(coord1.lat * Math.PI / 180) * Math.cos(coord2.lat * Math.PI / 180) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c; // Distance in km
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
   };
-  
+
   const handleJoinGroup = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!name.trim() || !location.trim() || !budget.trim() || moodTags.length === 0) {
       setJoinError('Name, location, budget, and mood tags are required');
       return;
     }
-    
+
     if (!group?.id) {
       setJoinError('Group information not available. Please refresh the page.');
       return;
     }
-    
+
     try {
       setIsJoining(true);
       setJoinError('');
       setJoinSuccess(false);
-      
-      console.log("Joining group with data:", {
+
+      const body = JSON.stringify({
         name: name.trim(),
         location: location.trim(),
         budget: parseFloat(budget),
         moodTags,
         groupId: group.id,
+        clerkUserId: user?.id || null,
+        email: user?.emailAddresses?.[0]?.emailAddress || null,
       });
-
-      const body = JSON.stringify({
-          name: name.trim(),
-          location: location.trim(),
-          budget: parseFloat(budget),
-          moodTags,
-          groupId: group.id,
-          clerkUserId: user?.id || null,
-          email: user?.emailAddresses?.[0]?.emailAddress || null,
-        });
 
       const response = fetchWithAuth
         ? await fetchWithAuth('/api/members', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body })
         : await fetch('/api/members', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         console.error('API Error:', errorData);
         throw new Error(errorData.error || `Server error: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (!data.success) {
         throw new Error(data.error || 'Failed to join group');
       }
-      
-      // Persist memberId and session for later voting
+
       if (typeof window !== 'undefined' && data.member?.id) {
         localStorage.setItem('memberId', data.member.id);
         setMemberId(data.member.id);
 
-        // Store session for this group
         const session = {
           memberId: data.member.id,
           groupCode: code,
@@ -447,26 +427,23 @@ export default function GroupPage() {
 
       console.log("Successfully joined group:", data);
       setJoinSuccess(true);
-             setHasJoined(true);
-      
-             // Refresh group data to show the new member
-             try {
-      const groupResponse = await fetch(`/api/groups/${code}`);
-      const groupData = await groupResponse.json();
-      
-      if (groupData.success) {
-  setGroup(groupData.group);
-               }
-             } catch (refreshError) {
-               console.error('Error refreshing group data:', refreshError);
-               // Don't show error to user, the join was successful
+      setHasJoined(true);
+
+      try {
+        const groupResponse = await fetch(`/api/groups/${code}`);
+        const groupData = await groupResponse.json();
+
+        if (groupData.success) {
+          setGroup(groupData.group);
+        }
+      } catch (refreshError) {
+        console.error('Error refreshing group data:', refreshError);
       }
-      
-      // Clear form
-  setName('');
-  setLocation('');
-  setBudget('');
-  setMoodTags([]);
+
+      setName('');
+      setLocation('');
+      setBudget('');
+      setMoodTags([]);
     } catch (err) {
       console.error('Error joining group:', err);
       setJoinError(err instanceof Error ? err.message : 'Failed to join group');
@@ -474,74 +451,73 @@ export default function GroupPage() {
       setIsJoining(false);
     }
   };
-  
+
   const findOptimalLocations = async () => {
-           if (!group?.id || isGeneratingLocations) return;
-    
+    if (!group?.id || isGeneratingLocations) return;
+
     try {
       setIsLoadingLocations(true);
-             setIsGeneratingLocations(true);
-             setError(''); // Clear any previous errors
-             console.log('Starting location generation for group:', group.id);
+      setIsGeneratingLocations(true);
+      setError('');
+      console.log('Starting location generation for group:', group.id);
 
       const response = await fetch(`/api/locations?groupId=${group.id}`);
       const data = await response.json();
 
-             if (!data.success) {
-               if (data.quotaExceeded) {
-                 setError('AI service quota exceeded. Please try again later or contact support.');
-               } else {
-        setError(data.error || 'Failed to find optimal locations');
-               }
-               setLocations([]);
-               return;
-             }
+      if (!data.success) {
+        if (data.quotaExceeded) {
+          setError('AI service quota exceeded. Please try again later or contact support.');
+        } else {
+          setError(data.error || 'Failed to find optimal locations');
+        }
+        setLocations([]);
+        return;
+      }
 
-             if (!data.locations || data.locations.length === 0) {
-               setError('No locations found. Please try again.');
+      if (!data.locations || data.locations.length === 0) {
+        setError('No locations found. Please try again.');
         setLocations([]);
         return;
       }
 
       setLocations(data.locations || []);
 
-             // Show success message if locations were generated (not cached)
-             if (!data.cached) {
-               console.log('New locations generated for group');
-             } else {
-               console.log('Using cached locations for group');
-             }
+      if (!data.cached) {
+        console.log('New locations generated for group');
+      } else {
+        console.log('Using cached locations for group');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to find optimal locations. Please try again.');
       setLocations([]);
     } finally {
       setIsLoadingLocations(false);
-             setIsGeneratingLocations(false);
+      setIsGeneratingLocations(false);
     }
   };
-  
+
   if (isLoading) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-6">
-        <div className="max-w-4xl w-full bg-white rounded-xl shadow-xl p-8 border border-blue-100 text-center">
+      <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-slate-50">
+        <div className="max-w-4xl w-full bg-white rounded-2xl shadow-xl p-8 border border-slate-100 text-center">
           <div className="animate-pulse">
-            <h1 className="text-2xl font-bold mb-4">Loading...</h1>
-            <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto mb-2.5"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto"></div>
+            <h1 className="text-2xl font-bold mb-4 text-slate-800">Loading Group...</h1>
+            <div className="h-4 bg-slate-200 rounded w-3/4 mx-auto mb-2.5"></div>
+            <div className="h-4 bg-slate-200 rounded w-1/2 mx-auto"></div>
           </div>
         </div>
       </main>
     );
   }
-  
+
   if (error) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-6">
-        <div className="max-w-4xl w-full bg-white rounded-xl shadow-xl p-8 border border-red-200 text-center">
+      <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-slate-50">
+        <div className="max-w-4xl w-full bg-white rounded-2xl shadow-xl p-8 border border-red-200 text-center animate-fade-in">
           <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
-          <p className="mb-6">{error}</p>
+          <p className="mb-6 text-slate-600">{error}</p>
           <Link href="/">
-            <Button>
+            <Button variant="outline">
               Back to Home
             </Button>
           </Link>
@@ -549,23 +525,23 @@ export default function GroupPage() {
       </main>
     );
   }
-  
+
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-slate-50">
       {/* Header Section */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-center">
+      <div className="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-40 backdrop-blur-md bg-white/80">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center space-x-4">
-              <div className="bg-blue-600 p-3 rounded-xl">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-gradient-to-br from-indigo-500 to-violet-600 p-3 rounded-xl shadow-lg shadow-indigo-500/20">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
               </div>
-          <div>
-                <h1 className="text-3xl font-bold text-gray-900">Group {code}</h1>
-                <div className="flex items-center justify-between">
-                  <p className="text-gray-600 mt-1">Share this code with friends to join your hangout</p>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Group {code}</h1>
+                <div className="flex items-center gap-3 mt-1">
+                  <p className="text-sm text-slate-500 hidden sm:block">Share code to invite friends</p>
                   <Button
                     onClick={() => {
                       const shareUrl = `${window.location.origin}/share/${code}`;
@@ -580,96 +556,99 @@ export default function GroupPage() {
                         alert('Share link copied to clipboard!');
                       }
                     }}
-                    variant="outline"
-                    className="text-xs px-3 py-1"
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-7 px-2"
                   >
-                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
                     </svg>
-                    Share Link
+                    Share
                   </Button>
                 </div>
-                <div className="mt-2">
-                  <RealtimeStatus groupId={group?.id} />
-                </div>
               </div>
-          </div>
-            <div className="flex items-center space-x-3">
-          <Link href="/">
-                <Button variant="outline" className="border-gray-300 hover:bg-gray-50">
+            </div>
+
+            <div className="flex items-center justify-between md:justify-end gap-4 w-full md:w-auto">
+              <RealtimeStatus groupId={group?.id} />
+              <Link href="/">
+                <Button variant="outline" size="sm" className="border-slate-200 hover:bg-slate-50">
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                   </svg>
-              Back to Home
-            </Button>
-          </Link>
+                  Home
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
-        </div>
-        
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Members */}
-          <div className="lg:col-span-1 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Left Column - Members (Sticky) */}
+          <div className="lg:col-span-4 lg:sticky lg:top-24 space-y-6">
             {/* Members Card */}
-            <div className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden ${styles.animateFadeInUp}`}>
-              <div className="bg-blue-600 px-6 py-4">
-                <h2 className="text-xl font-semibold text-white flex items-center">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in-up">
+              <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-4 flex justify-between items-center">
+                <h2 className="text-lg font-bold text-white flex items-center">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                   </svg>
-                  Members ({group?.members.length || 0})
+                  Group Members
                 </h2>
+                <span className="bg-white/20 text-white text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">
+                  {group?.members.length || 0}
+                </span>
               </div>
               <div className="p-6">
-            {group?.members && group.members.length > 0 ? (
-                  <div className="space-y-4">
+                {group?.members && group.members.length > 0 ? (
+                  <div className="space-y-3">
                     {group.members.map((member) => (
-                      <div key={member.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                        <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
+                      <div key={member.id} className="flex items-center space-x-3 p-3 bg-slate-50 border border-slate-100 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/30 transition-all duration-200 group">
+                        <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-violet-500 rounded-full flex items-center justify-center text-white font-bold shadow-sm group-hover:scale-110 transition-transform">
                           {member.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{member.name}</p>
-                          <p className="text-xs text-gray-500 truncate">{member.location}</p>
+                          <p className="text-sm font-bold text-slate-900 truncate">{member.name}</p>
+                          <p className="text-xs text-slate-500 truncate flex items-center">
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            {member.location}
+                          </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-semibold text-green-600">₹{member.budget.toFixed(0)}</p>
+                          <div className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-1 rounded-lg">
+                            ₹{member.budget.toFixed(0)}
+                          </div>
                         </div>
                       </div>
                     ))}
-              </div>
-            ) : (
-                  <div className="text-center py-8">
-                    <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                    </svg>
-                    <p className="text-gray-500 text-sm">No members have joined yet</p>
                   </div>
-            )}
-            
-            {group?.members && group.members.length >= 2 && (
-                  <div className="mt-6 space-y-3">
-                <Button 
-                  onClick={findOptimalLocations}
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                      </svg>
+                    </div>
+                    <p className="text-slate-500 text-sm">No members yet</p>
+                  </div>
+                )}
+
+                {group?.members && group.members.length >= 2 && (
+                  <div className="mt-6 space-y-3 pt-6 border-t border-slate-100">
+                    <Button
+                      onClick={findOptimalLocations}
                       disabled={isLoadingLocations || isGeneratingLocations}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
+                      variant="gradient"
+                      fullWidth
+                      loading={isLoadingLocations}
+                      className="shadow-lg shadow-indigo-500/20"
                     >
-                      {isLoadingLocations ? (
-                        <div className="flex items-center justify-center">
-                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                          Finding Locations...
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center">
-                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          Find Optimal Locations
-                        </div>
-                      )}
+                      {isLoadingLocations ? 'Finding Locations...' : 'Find Optimal Locations'}
                     </Button>
 
                     {locations.length > 0 && (
@@ -686,534 +665,444 @@ export default function GroupPage() {
                             console.error('Error clearing itineraries:', err);
                           }
                         }}
-                        variant="outline"
-                        className="w-full border-red-300 text-red-600 hover:bg-red-50 font-medium py-2 rounded-xl"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
                       >
                         Clear Cached Locations
-                </Button>
+                      </Button>
                     )}
-              </div>
-            )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
-          
+
           {/* Right Column - Join Form and Itineraries */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-8 space-y-8">
             {/* Join Form Card */}
-            <div className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden ${styles.animateSlideInRight}`}>
-              <div className="bg-blue-600 px-6 py-4">
-                <h2 className="text-xl font-semibold text-white flex items-center">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in-up delay-100">
+              <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-4">
+                <h2 className="text-lg font-bold text-white flex items-center">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                   </svg>
                   Join this Group
                 </h2>
               </div>
-              <div className="p-6">
-
+              <div className="p-6 sm:p-8">
                 {hasJoined ? (
-                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-4 rounded-xl mb-6">
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center mr-3">
-                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="font-semibold">Successfully joined!</p>
-                        <p className="text-sm text-green-600">You can now vote on locations and participate in group decisions.</p>
-              </div>
-              </div>
-              </div>
-            ) : (
-              <>
-                {joinError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+                  <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 px-5 py-6 rounded-xl flex items-center shadow-sm">
+                    <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mr-5 flex-shrink-0">
+                      <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-bold text-lg mb-1">You&apos;re in!</p>
+                      <p className="text-sm text-emerald-700">You can now vote on locations and participate in group decisions.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {joinError && (
+                      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 animate-fade-in">
                         <div className="flex items-center">
                           <svg className="w-5 h-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                    {joinError}
+                          <span className="font-medium">{joinError}</span>
                         </div>
-                  </div>
-                )}
-                {joinSuccess && (
-                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
+                      </div>
+                    )}
+                    {joinSuccess && (
+                      <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl mb-6 animate-fade-in">
                         <div className="flex items-center">
-                          <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 mr-2 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                    Successfully joined the group!
+                          <span className="font-medium">Successfully joined the group!</span>
                         </div>
-                  </div>
-                )}
-                    <form onSubmit={handleJoinGroup} className="space-y-5">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Your Name</label>
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                      </div>
+                    )}
+                    <form onSubmit={handleJoinGroup} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Input
+                          label="Your Name"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
                           placeholder="Enter your name"
-                    fullWidth
-                    required
-                    disabled={isJoining}
-                          className="rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                  />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Your Location</label>
-                  <Input
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder="City, State or Address"
-                    fullWidth
-                    required
-                    disabled={isJoining}
-                          className="rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                  />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Your Budget (in ₹)</label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={budget}
-                    onChange={(e) => setBudget(e.target.value)}
-                          placeholder="Enter your budget"
-                    fullWidth
-                    required
-                    disabled={isJoining}
-                          className="rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                  />
-                      </div>
-                  <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-3">Mood Tags <span className="text-xs text-gray-500">(select at least one)</span></label>
-                        <div className="grid grid-cols-2 gap-2">
-                      {['Adventure', 'Relaxation', 'Culture', 'Food', 'Nature', 'Shopping', 'Nightlife'].map(tag => (
-                        <button
-                          type="button"
-                          key={tag}
-                              className={`px-3 py-2 rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                                moodTags.includes(tag)
-                                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                  : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-blue-50 hover:border-blue-400'
-                              }`}
-                          onClick={() => {
-                            if (!isJoining) {
-                              setMoodTags(moodTags.includes(tag) ? moodTags.filter(t => t !== tag) : [...moodTags, tag]);
-                            }
-                          }}
+                          fullWidth
+                          required
                           disabled={isJoining}
-                          aria-pressed={moodTags.includes(tag)}
+                        />
+                        <Input
+                          label="Your Location"
+                          value={location}
+                          onChange={(e) => setLocation(e.target.value)}
+                          placeholder="City, State or Address"
+                          fullWidth
+                          required
+                          disabled={isJoining}
+                        />
+                      </div>
+
+                      <Input
+                        label="Your Budget (in ₹)"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={budget}
+                        onChange={(e) => setBudget(e.target.value)}
+                        placeholder="Enter your budget"
+                        fullWidth
+                        required
+                        disabled={isJoining}
+                      />
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-3">
+                          Mood Tags <span className="text-xs text-slate-500 font-normal ml-1">(select at least one)</span>
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {['Adventure', 'Relaxation', 'Culture', 'Food', 'Nature', 'Shopping', 'Nightlife'].map(tag => (
+                            <button
+                              type="button"
+                              key={tag}
+                              className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 border ${moodTags.includes(tag)
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20 transform scale-105'
+                                : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
+                                }`}
+                              onClick={() => {
+                                if (!isJoining) {
+                                  setMoodTags(moodTags.includes(tag) ? moodTags.filter(t => t !== tag) : [...moodTags, tag]);
+                                }
+                              }}
+                              disabled={isJoining}
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="pt-4">
+                        <Button
+                          type="submit"
+                          fullWidth
+                          variant="gradient"
+                          size="lg"
+                          loading={isJoining}
+                          disabled={isJoining || !name.trim() || !location.trim() || !budget.trim() || moodTags.length === 0}
+                          className="shadow-lg shadow-indigo-500/30"
                         >
-                              <div className="flex items-center justify-center">
-                                <span className="text-sm font-medium">{tag}</span>
-                          {moodTags.includes(tag) && <span className="ml-2 text-xs">✓</span>}
-                              </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <Button 
-                    type="submit" 
-                    fullWidth 
-                    disabled={isJoining || !name.trim() || !location.trim() || !budget.trim() || moodTags.length === 0}
-                        className={`w-full py-3 rounded-lg font-semibold transition-all duration-200 ${
-                          isJoining || !name.trim() || !location.trim() || !budget.trim() || moodTags.length === 0
-                            ? 'opacity-60 cursor-not-allowed bg-gray-400'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md'
-                        }`}
-                      >
-                        {isJoining ? (
-                          <div className="flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                            Joining...
-                          </div>
-                        ) : (
-                          'Join Group'
-                        )}
-                  </Button>
-                </form>
-              </>
-            )}
-          </div>
+                          Join Group
+                        </Button>
+                      </div>
+                    </form>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Itineraries Section */}
             {locations.length === 0 && group?.members && group.members.length >= 2 && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-12 text-center">
-                  <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <svg className="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Ready to Find Locations?</h3>
-                  <p className="text-gray-600 mb-6">Click the &ldquo;Find Optimal Locations&rdquo; button to get AI-powered suggestions for your group.</p>
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden p-12 text-center animate-fade-in-up delay-200">
+                <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
+                  <svg className="w-10 h-10 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
                 </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">Ready to Find Locations?</h3>
+                <p className="text-slate-600 mb-8 max-w-md mx-auto">Click the &ldquo;Find Optimal Locations&rdquo; button to get AI-powered suggestions tailored to your group&apos;s preferences.</p>
+                <Button onClick={findOptimalLocations} variant="outline" className="mx-auto">
+                  Find Locations Now
+                </Button>
               </div>
             )}
 
             {/* Optimal Locations - Show only winning itinerary when decided */}
             {locations.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="bg-blue-600 px-8 py-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-2xl font-bold text-white flex items-center">
-                        <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        {finalisedIdx !== null ? 'Final Meetup Location' : 'Vote for Meetup Locations'}
-                      </h2>
-                      <p className="text-blue-100 mt-1">
-                        {finalisedIdx !== null
-                          ? 'The group has decided on this location!'
-                          : 'AI-powered suggestions based on your group\'s preferences'
-                        }
-                      </p>
-                    </div>
-                    <div className="flex items-center text-blue-100 text-sm">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Shared with all members
+              <div className="space-y-8">
+                {/* Header Section */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in-up">
+                  <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-8 py-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-2xl font-bold text-white flex items-center">
+                          <span className="mr-3 text-3xl">
+                            {finalisedIdx !== null ? '🎉' : '🗳️'}
+                          </span>
+                          {finalisedIdx !== null ? 'It\'s a Match!' : 'Vote for the Best Plan'}
+                        </h2>
+                        <p className="text-indigo-100 mt-2 text-lg">
+                          {finalisedIdx !== null
+                            ? 'The group has spoken! Here is your perfect meetup plan.'
+                            : 'Review the AI-curated options below and vote for your favorite.'
+                          }
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="p-8">
-                  {/* Check if all members have voted for consensus */}
-                  {(() => {
-                    const totalMembers = group?.members?.length || 0;
-                    const totalVotes = Object.values(voteCounts).reduce((sum: number, count: unknown) => sum + (count as number), 0);
-                    const hasConsensus = totalVotes >= totalMembers && finalisedIdx !== null;
 
-                    return hasConsensus ? (
-                      /* Show only the winning itinerary when ALL have voted */
-                      <div className="max-w-2xl mx-auto">
-                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border-2 border-green-200 p-8 text-center mb-8">
-                          <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          </div>
-                          <h3 className="text-2xl font-bold text-green-800 mb-2">Location Decided!</h3>
-                          <p className="text-green-600">
-                            All members have voted! The group has chosen <span className="font-semibold">{locations[finalisedIdx]?.name}</span> as the meetup location.
-                          </p>
-                        </div>
+                  {/* Consensus Logic */}
+                  <div className="p-8 bg-slate-50/50">
+                    {(() => {
+                      const totalMembers = group?.members?.length || 0;
+                      const totalVotes = Object.values(voteCounts).reduce((sum: number, count: unknown) => sum + (count as number), 0);
+                      const hasConsensus = totalVotes >= totalMembers && finalisedIdx !== null;
 
-                      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-                        <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
-                          <h3 className="text-xl font-bold text-white">{locations[finalisedIdx]?.name}</h3>
-                        </div>
-                        <div className="p-6">
-                          <p className="text-gray-600 mb-6 leading-relaxed">{locations[finalisedIdx]?.description}</p>
-
-                          <div className="bg-gray-50 rounded-lg p-6 mb-6">
-                            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                              <svg className="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                              </svg>
-                              Meetup Itinerary
-                            </h4>
-                            <div className="space-y-4">
-                              {(locations[finalisedIdx]?.itineraryDetails || []).map((item: ItineraryDetail, i: number) => (
-                                <div key={i} className="bg-white rounded-lg p-4 border border-gray-200">
-                                  <div className="flex items-start space-x-4">
-                                    <div className="flex-shrink-0">
-                                      <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                                        {i + 1}
-                                      </div>
+                      return hasConsensus ? (
+                        /* FINAL ITINERARY VIEW */
+                        <div className="max-w-4xl mx-auto">
+                          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+                            {/* Hero Image */}
+                            <div className="relative h-64 sm:h-80 bg-slate-200">
+                              {locations[finalisedIdx]?.itineraryDetails?.[0]?.photos?.[0] ? (
+                                <Image
+                                  src={locations[finalisedIdx].itineraryDetails![0].photos[0]}
+                                  alt={locations[finalisedIdx].name}
+                                  fill
+                                  className="object-cover"
+                                />
+                              ) : (
+                                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-purple-600" />
+                              )}
+                              <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/40 to-transparent" />
+                              <div className="absolute bottom-0 left-0 p-8 w-full">
+                                <div className="flex justify-between items-end">
+                                  <div>
+                                    <div className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold mb-3 backdrop-blur-md">
+                                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                      Winner
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                      <h5 className="text-lg font-semibold text-gray-900 mb-2">{item.name}</h5>
-                                      <p className="text-gray-600 mb-3">{item.address}</p>
-
-                                      <div className="flex flex-wrap items-center gap-4 mb-3">
-                                        {item.rating !== null && (
-                                          <div className="flex items-center text-yellow-600">
-                                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                            </svg>
-                                            <span className="text-sm font-medium">{item.rating}</span>
-                                          </div>
-                                        )}
-                                        {item.priceLevel !== null && (
-                                          <div className="flex items-center text-green-600">
-                                            <span className="text-sm font-medium">
-                                              Price: {'₹'.repeat(item.priceLevel ?? 0)}
-                                            </span>
-                                          </div>
-                                        )}
-                                      </div>
-
-                                      {item.photos && item.photos.length > 0 && (
-                                        <div className="flex gap-2 mt-3">
-                                          {item.photos.slice(0, 3).map((photoUrl: string, idx: number) => (
-                                            <div key={idx} className="relative">
-                                              <Image
-                                                src={photoUrl}
-                                                alt="Place photo"
-                                                width={80}
-                                                height={80}
-                                                className="w-20 h-20 object-cover rounded-lg shadow-sm"
-                                              />
-                                              {idx === 2 && item.photos.length > 3 && (
-                                                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
-                                                  <span className="text-white text-xs font-semibold">+{item.photos.length - 3}</span>
-                                                </div>
-                                              )}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
+                                    <h3 className="text-4xl font-bold text-white mb-2">{locations[finalisedIdx]?.name}</h3>
+                                    <p className="text-slate-300 text-lg max-w-2xl">{locations[finalisedIdx]?.description}</p>
+                                  </div>
+                                  <div className="text-right hidden sm:block">
+                                    <p className="text-slate-400 text-sm uppercase tracking-wider font-medium mb-1">Total Cost</p>
+                                    <p className="text-3xl font-bold text-white">₹{locations[finalisedIdx]?.estimatedCost.toFixed(0)}</p>
                                   </div>
                                 </div>
-                              ))}
-        </div>
-      </div>
-      
-                          {/* Location and Distance Info */}
-                          <div className="mt-6 space-y-3">
-                            {!userLocation && (
-                              <button
-                                onClick={getLocationAndDistances}
-                                disabled={isGettingLocation}
-                                className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-                              >
-                                {isGettingLocation ? (
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                ) : (
-                                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  </svg>
-                                )}
-                                {isGettingLocation ? 'Getting Location...' : 'Show Distance from You'}
-                              </button>
-                            )}
-
-                            {userLocation && distances[locations[finalisedIdx]?.name] && (
-                              <div className="bg-white rounded-lg p-4 border border-green-200">
-                                <div className="flex items-center justify-center space-x-2">
-                                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  </svg>
-                                  <span className="text-green-800 font-semibold">
-                                    {distances[locations[finalisedIdx]?.name]?.toFixed(1)} km from your location
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Interactive Map */}
-                            {userLocation && (
-                              <div className="mt-6">
-                                <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                                  <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                                  </svg>
-                                  Interactive Map & Directions
-                                </h4>
-                                <InteractiveMap
-                                  location={locations[finalisedIdx]?.name || ''}
-                                  userLocation={userLocation}
-                                  className="w-full"
-                                />
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="text-center">
-                            <div className="inline-flex items-center px-6 py-3 bg-green-100 rounded-full">
-                              <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                              </svg>
-                              <span className="text-green-800 font-semibold">
-                                Total Cost: ₹{locations[finalisedIdx]?.estimatedCost.toFixed(0)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    ) : (
-                      /* Show all itineraries for voting when consensus not reached */
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {locations.map((location, index) => (
-                        <div key={index} className="group relative bg-white rounded-xl shadow-sm border border-gray-200 transition-all duration-300 hover:shadow-md">
-                          {/* Header */}
-                          <div className="p-6 pb-4">
-                            <div className="flex items-start justify-between mb-4">
-                              <div className="flex-1">
-                                <h3 className="text-xl font-bold text-gray-900 mb-2">{location.name}</h3>
-                                <p className="text-gray-600 leading-relaxed">{location.description}</p>
-                              </div>
-                              <div className="ml-4 text-right">
-                                <div className="bg-green-500 text-white px-3 py-2 rounded-lg shadow-sm">
-                                  <p className="text-sm font-medium">Cost</p>
-                                  <p className="text-lg font-bold">₹{location.estimatedCost.toFixed(0)}</p>
-                                </div>
                               </div>
                             </div>
 
-                            {/* Vote Section */}
-                            <div className="flex items-center justify-between mb-6 p-4 bg-gray-50 rounded-lg">
-                              <div className="flex items-center space-x-4">
-                  <button
-                                  className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 ${
-                                    votedIdx === index
-                                      ? 'bg-green-500 text-white cursor-not-allowed'
-                                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md'
-                                  }`}
-                    disabled={votedIdx === index}
-                    onClick={() => handleVote(index)}
-                  >
-                                  {votedIdx === index ? (
-                                    <div className="flex items-center">
-                                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                      </svg>
-                                      Voted
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center">
-                                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
-                                      </svg>
-                                      Vote
-                                    </div>
-                                  )}
-                  </button>
-                                <div className="flex items-center text-gray-600">
-                                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                  </svg>
-                                  <span className="font-semibold">{voteCounts[index] || 0} votes</span>
-                                </div>
-                              </div>
-                            </div>
-                </div>
+                            <div className="p-8">
+                              {/* Timeline */}
+                              <div className="relative">
+                                <div className="absolute left-8 top-4 bottom-4 w-0.5 bg-indigo-100"></div>
 
-                          {/* Itinerary Items */}
-                          <div className="px-6 pb-6">
-                            <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                              <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                              </svg>
-                              Suggested Itinerary
-                            </h4>
-                            <div className="space-y-4">
-                  {(location.itineraryDetails || []).map((item: ItineraryDetail, i: number) => (
-                                <div key={i} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                  <div className="flex items-start space-x-4">
-                                    <div className="flex-shrink-0">
-                                      <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                                        {i + 1}
+                                <div className="space-y-10">
+                                  {(locations[finalisedIdx]?.itineraryDetails || []).map((item: ItineraryDetail, i: number) => (
+                                    <div key={i} className="relative flex gap-8">
+                                      {/* Node */}
+                                      <div className="flex-shrink-0 z-10">
+                                        <div className="w-16 h-16 bg-white border-4 border-indigo-50 rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/10">
+                                          <span className="text-xl font-bold text-indigo-600">{i + 1}</span>
+                                        </div>
+                                      </div>
+
+                                      {/* Content */}
+                                      <div className="flex-1 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-shadow">
+                                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+                                          <div>
+                                            <h4 className="text-xl font-bold text-slate-900">{item.name}</h4>
+                                            <p className="text-slate-500 flex items-center mt-1">
+                                              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                              </svg>
+                                              {item.address}
+                                            </p>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            {item.rating && (
+                                              <div className="flex items-center bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-amber-100">
+                                                <span className="mr-1">★</span> {item.rating}
+                                              </div>
+                                            )}
+                                            {item.priceLevel && (
+                                              <div className="flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-emerald-100">
+                                                {'₹'.repeat(item.priceLevel)}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {item.photos && item.photos.length > 0 && (
+                                          <div className="flex gap-3 overflow-x-auto pb-4 mb-2 scrollbar-hide">
+                                            {item.photos.map((photoUrl: string, idx: number) => (
+                                              <div key={idx} className="relative w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden shadow-sm group">
+                                                <Image
+                                                  src={photoUrl}
+                                                  alt={item.name}
+                                                  fill
+                                                  className="object-cover group-hover:scale-110 transition-transform duration-500"
+                                                  sizes="128px"
+                                                />
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+
+                                        {item.mapsLink && (
+                                          <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
+                                            <a
+                                              href={item.mapsLink}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="inline-flex items-center text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                                            >
+                                              Open in Google Maps
+                                              <svg className="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                              </svg>
+                                            </a>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                      <h5 className="text-lg font-semibold text-gray-900 mb-2">{item.name}</h5>
-                                      <p className="text-gray-600 mb-3">{item.address}</p>
+                                  ))}
+                                </div>
+                              </div>
 
-                                      <div className="flex flex-wrap items-center gap-4 mb-3">
-                          {item.rating !== null && (
-                                          <div className="flex items-center text-yellow-600">
-                                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                            </svg>
-                                            <span className="text-sm font-medium">{item.rating}</span>
-                                          </div>
-                          )}
-                          {item.priceLevel !== null && (
-                                          <div className="flex items-center text-green-600">
-                                            <span className="text-sm font-medium">
-                                              Price: {'₹'.repeat(item.priceLevel ?? 0)}
-                                            </span>
-                                          </div>
-                          )}
-                        </div>
+                              {/* Map Section */}
+                              <div className="mt-12 pt-12 border-t border-slate-200">
+                                <h4 className="text-xl font-bold text-slate-900 mb-6 flex items-center">
+                                  <span className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center mr-3 text-indigo-600">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                                    </svg>
+                                  </span>
+                                  Directions & Map
+                                </h4>
 
-                                                 {item.photos && item.photos.length > 0 && (
-                                        <div className="flex gap-2 mt-3">
-                                          {item.photos.slice(0, 3).map((photoUrl: string, idx: number) => (
-                                            <div key={idx} className="relative">
-                                              <Image
-                                                src={photoUrl}
-                                                alt="Place photo"
-                                                width={120}
-                                                height={120}
-                                                className="w-28 h-28 object-cover rounded-lg shadow-sm hover:shadow-md transition-shadow"
-                                              />
-                                              {idx === 2 && item.photos.length > 3 && (
-                                                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
-                                                  <span className="text-white text-xs font-semibold">+{item.photos.length - 3}</span>
-                                                </div>
-                                              )}
-                                            </div>
-                             ))}
-                           </div>
-                         )}
+                                {!userLocation ? (
+                                  <Button
+                                    onClick={getLocationAndDistances}
+                                    disabled={isGettingLocation}
+                                    variant="outline"
+                                    className="mb-4"
+                                  >
+                                    {isGettingLocation ? 'Locating...' : 'Enable Location for Directions'}
+                                  </Button>
+                                ) : (
+                                  distances[locations[finalisedIdx]?.name] && (
+                                    <div className="bg-emerald-50 text-emerald-800 px-4 py-3 rounded-xl mb-6 inline-flex items-center font-medium border border-emerald-100">
+                                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                      </svg>
+                                      {distances[locations[finalisedIdx]?.name]?.toFixed(1)} km away from you
+                                    </div>
+                                  )
+                                )}
 
-                                      {/* Google Maps Link */}
-                                      {item.mapsLink && (
-                                        <a
-                                          href={item.mapsLink}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="inline-flex items-center mt-3 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                                        >
-                                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                          </svg>
-                                          View on Google Maps
-                                        </a>
-                                      )}
-
-                                      {/* Reviews */}
-                                      {item.reviews && item.reviews.length > 0 && (
-                                        <div className="mt-4 space-y-3">
-                                          <h6 className="text-sm font-semibold text-gray-900">
-                                            Reviews {item.userRatingsTotal > 0 && `(${item.userRatingsTotal} total)`}
-                                          </h6>
-                                          {item.reviews.slice(0, 2).map((review, reviewIdx) => (
-                                            <div key={reviewIdx} className="bg-white p-3 rounded-lg border border-gray-200">
-                                              <div className="flex items-center justify-between mb-2">
-                                                <span className="text-sm font-medium text-gray-900">{review.author_name}</span>
-                                                <div className="flex items-center text-yellow-600">
-                                                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                                  </svg>
-                                                  <span className="text-sm">{review.rating}</span>
-                                                </div>
-                                              </div>
-                                              <p className="text-sm text-gray-600 line-clamp-3">{review.text}</p>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                      </div>
-                    </div>
-              </div>
-            ))}
+                                {userLocation && (
+                                  <div className="h-96 rounded-2xl overflow-hidden shadow-md border border-slate-200">
+                                    <InteractiveMap
+                                      location={locations[finalisedIdx]?.name || ''}
+                                      userLocation={userLocation}
+                                      className="w-full h-full"
+                                    />
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  );
-                  })()}
-          </div>
-        </div>
-      )}
+                      ) : (
+                        /* VOTING VIEW */
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                          {locations.map((location, index) => (
+                            <div key={index} className="group relative bg-white rounded-2xl shadow-sm border border-slate-200 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1 flex flex-col h-full overflow-hidden">
+                              {/* Card Header */}
+                              <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                                <div className="flex justify-between items-start mb-4">
+                                  <h3 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{location.name}</h3>
+                                  <div className="bg-white px-3 py-1.5 rounded-lg shadow-sm border border-slate-200">
+                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Est. Cost</span>
+                                    <div className="text-lg font-bold text-emerald-600">₹{location.estimatedCost.toFixed(0)}</div>
+                                  </div>
+                                </div>
+                                <p className="text-slate-600 text-sm leading-relaxed line-clamp-2">{location.description}</p>
+                              </div>
+
+                              {/* Itinerary Preview */}
+                              <div className="p-6 flex-1">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mr-2"></span>
+                                  Includes
+                                </h4>
+                                <div className="space-y-4">
+                                  {(location.itineraryDetails || []).slice(0, 3).map((item: ItineraryDetail, i: number) => (
+                                    <div key={i} className="flex items-start">
+                                      <div className="w-6 h-6 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center text-xs font-bold mr-3 flex-shrink-0 mt-0.5">
+                                        {i + 1}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-semibold text-slate-900 truncate">{item.name}</p>
+                                        <p className="text-xs text-slate-500 truncate">{item.address}</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {(location.itineraryDetails?.length || 0) > 3 && (
+                                    <div className="pl-9 text-xs text-slate-500 font-medium">
+                                      + {(location.itineraryDetails?.length || 0) - 3} more stops
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Vote Action */}
+                              <div className="p-4 bg-slate-50 border-t border-slate-100 mt-auto">
+                                <div className="flex items-center justify-between gap-4">
+                                  <div className="flex items-center text-slate-700 font-bold">
+                                    <div className="flex -space-x-2 mr-3">
+                                      {[...Array(Math.min(voteCounts[index] || 0, 3))].map((_, i) => (
+                                        <div key={i} className="w-8 h-8 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center text-xs text-indigo-600">
+                                          👍
+                                        </div>
+                                      ))}
+                                      {(voteCounts[index] || 0) > 3 && (
+                                        <div className="w-8 h-8 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-xs text-slate-500 font-bold">
+                                          +{(voteCounts[index] || 0) - 3}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <span>{voteCounts[index] || 0} Votes</span>
+                                  </div>
+
+                                  <Button
+                                    onClick={() => handleVote(index)}
+                                    disabled={votedIdx === index}
+                                    variant={votedIdx === index ? 'outline' : 'primary'}
+                                    className={`flex-1 ${votedIdx === index ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'shadow-lg shadow-indigo-500/20'}`}
+                                  >
+                                    {votedIdx === index ? (
+                                      <>
+                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        Voted
+                                      </>
+                                    ) : (
+                                      'Vote For This'
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

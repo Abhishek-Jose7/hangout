@@ -30,17 +30,18 @@ export async function GET(
 
     // Get group from Supabase
     const { data: group, error } = await supabase
-      .from('groups')
+      .from('Group')
       .select(`
         *,
-        members (*)
+        Member (*)
       `)
       .eq('code', code)
       .single();
 
     if (error || !group) {
+      console.error('Error fetching group from Supabase:', error);
       return NextResponse.json(
-        { success: false, error: 'Group not found' },
+        { success: false, error: error?.message || 'Group not found' },
         { status: 404 }
       );
     }

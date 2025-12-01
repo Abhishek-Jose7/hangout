@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     // Remove any previous vote by this member in this group
     const { error: deleteError } = await supabase
-      .from('itinerary_votes')
+      .from('ItineraryVote')
       .delete()
       .eq('group_id', groupId)
       .eq('member_id', memberId);
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     // Add new vote
     const { error: createError } = await supabase
-      .from('itinerary_votes')
+      .from('ItineraryVote')
       .insert({
         group_id: groupId,
         member_id: memberId,
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     // Count votes for each itinerary
     const { data: votes, error: votesError } = await supabase
-      .from('itinerary_votes')
+      .from('ItineraryVote')
       .select('itinerary_idx')
       .eq('group_id', groupId);
 
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
         if (io && !process.env.VERCEL) {
           // Get group code for socket emission
           const { data: group } = await supabase
-            .from('groups')
+            .from('Group')
             .select('code')
             .eq('id', groupId)
             .single();

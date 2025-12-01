@@ -9,12 +9,13 @@
     "lint": "npx eslint"
   },
   "dependencies": {
-    "@clerk/nextjs": "^6.33.3",
+    "@clerk/nextjs": "^6.35.5",
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.74.0",
     "@types/google.maps": "^3.58.1",
     "firebase": "^12.1.0",
     "firebase-admin": "^11.11.0",
+    "groq-sdk": "^0.34.0",
     "leaflet": "^1.9.4",
     "next": "15.5.0",
     "postgres": "^3.4.7",
@@ -27,7 +28,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@types/leaflet": "^1.9.20",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

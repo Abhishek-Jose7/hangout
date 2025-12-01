@@ -13,7 +13,6 @@ export default function JoinGroup() {
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  // Authentication is handled by Clerk middleware
 
   const handleJoinGroup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,69 +45,71 @@ export default function JoinGroup() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-slate-50">
       <Navbar />
 
-      <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8">
+      <div className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+          <div className="text-center mb-12 animate-fade-in-up">
+            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
               Join a Group
             </h1>
-            <p className="text-lg text-gray-600">
+            <p className="text-lg text-slate-600">
               Enter a group code to join friends who are already planning a hangout together.
             </p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 sm:p-12">
-            <div className="text-center mb-8">
-              <div className="text-6xl mb-4">🔗</div>
-              <p className="text-gray-600">
+          <div className="bg-white rounded-2xl shadow-xl shadow-indigo-500/10 border border-slate-200 p-8 sm:p-12 animate-fade-in-up delay-100">
+            <div className="text-center mb-10">
+              <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl animate-bounce">
+                🔗
+              </div>
+              <p className="text-slate-600 text-lg">
                 Ask your friends for the 6-character group code and enter it below to join their hangout planning.
               </p>
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-8 animate-fade-in">
                 <div className="flex items-center">
-                  <span className="text-red-500 mr-2">⚠️</span>
-                  {error}
+                  <span className="text-red-500 mr-2 text-xl">⚠️</span>
+                  <span className="font-medium">{error}</span>
                 </div>
               </div>
             )}
 
-            <form onSubmit={handleJoinGroup} className="space-y-6">
-              <Input
-                label="Group Code"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="Enter the 6-character code"
-                fullWidth
-                required
-                disabled={isLoading}
-                className="text-center text-lg tracking-wider"
-                maxLength={6}
-              />
+            <form onSubmit={handleJoinGroup} className="space-y-8">
+              <div className="max-w-xs mx-auto">
+                <Input
+                  label="Group Code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  placeholder="EX: ABC123"
+                  fullWidth
+                  required
+                  disabled={isLoading}
+                  className="text-center text-2xl tracking-[0.2em] font-mono uppercase h-14"
+                  maxLength={6}
+                />
+              </div>
 
-              <Button
-                type="submit"
-                disabled={isLoading || code.length !== 6}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl min-w-[200px]"
-              >
-                {isLoading ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                    Joining...
-                  </div>
-                ) : (
-                  'Join Group'
-                )}
-              </Button>
+              <div className="text-center">
+                <Button
+                  type="submit"
+                  disabled={isLoading || code.length !== 6}
+                  variant="gradient"
+                  size="lg"
+                  className="min-w-[240px] shadow-lg shadow-indigo-500/30"
+                  loading={isLoading}
+                >
+                  Join Group
+                </Button>
+              </div>
             </form>
 
-            <div className="mt-8 text-center">
-              <Link href="/" className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="mt-10 text-center border-t border-slate-100 pt-8">
+              <Link href="/" className="inline-flex items-center text-slate-500 hover:text-indigo-600 font-medium transition-colors group">
+                <svg className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
                 Back to Home

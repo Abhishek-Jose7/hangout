@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-          const payload = await request.json();
-          const { name, location, budget, groupId, moodTags, email } = payload;
+    const payload = await request.json();
+    const { name, location, budget, groupId, moodTags, email } = payload;
 
     // Validate required fields
     if (!name || !location || budget === undefined || !groupId) {
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
     // Check if group exists
     const { data: group, error: groupError } = await supabase
-      .from('groups')
+      .from('Group')
       .select('id')
       .eq('id', groupId)
       .single();
@@ -69,9 +69,9 @@ export async function POST(request: NextRequest) {
 
     // Check if user is already a member of this group
     console.log('Checking existing membership for user:', userId, 'in group:', groupId);
-    
+
     const { data: existingMember, error: existingError } = await supabase
-      .from('members')
+      .from('Member')
       .select('id, name, clerk_user_id')
       .eq('clerk_user_id', userId)
       .eq('group_id', groupId)
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       console.log('User is already a member of this group:', existingMember);
       // Return existing member data
       const { data: memberData, error: memberError } = await supabase
-        .from('members')
+        .from('Member')
         .select('*')
         .eq('id', existingMember.id)
         .single();
@@ -108,22 +108,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-           // Create member in Supabase
-           console.log('Creating new member for user:', userId);
+    // Create member in Supabase
+    console.log('Creating new member for user:', userId);
 
-           const { data: member, error: createError } = await supabase
-             .from('members')
-             .insert({
-               name: name.trim(),
-               location: location.trim(),
-               budget: budgetNum,
-               mood_tags: Array.isArray(moodTags) ? moodTags.join(',') : '',
-               clerk_user_id: userId,
-               email: email || null,
-               group_id: groupId
-             })
-             .select()
-             .single();
+    const { data: member, error: createError } = await supabase
+      .from('Member')
+      .insert({
+        name: name.trim(),
+        location: location.trim(),
+        budget: budgetNum,
+        mood_tags: Array.isArray(moodTags) ? moodTags.join(',') : '',
+        clerk_user_id: userId,
+        email: email || null,
+        group_id: groupId
+      })
+      .select()
+      .single();
 
     if (createError) {
       console.error('Error creating member:', createError);
@@ -139,17 +139,31 @@ export async function POST(request: NextRequest) {
       // Get updated group data in parallel (don't await to avoid blocking response)
       (async () => {
         try {
-          const { data: updatedGroup, error: updatedGroupError } = await supabase
-            .from('groups')
-            .select(`
-              *,
-              members (*)
-            `)
+          const { data: groupData, error: groupError } = await supabase
+            .from('Group')
+            .select('code')
             .eq('id', groupId)
             .single();
 
-          if (!updatedGroupError && updatedGroup) {
-            io.to(groupId).emit('member-joined', updatedGroup);
+          if (!groupError && groupData) {
+            io.to(groupId).emit('member-joined', {
+              groupCode: groupData.code,
+              member: member
+            });
+
+            // Also emit group-updated to ensure full state consistency
+            const { data: updatedGroup } = await supabase
+              .from('Group')
+              .select(`
+              *,
+              Member (*)
+            `)
+              .eq('id', groupId)
+              .single();
+
+            if (updatedGroup) {
+              io.to(groupId).emit('group-updated', updatedGroup);
+            }
           }
         } catch (error) {
           console.error('Error fetching updated group for socket emission:', error);

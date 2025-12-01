@@ -1,0 +1,14 @@
+# Clerk + Supabase Configuration
+# Replace these with your actual API keys
+# Clerk Configuration (for authentication)
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_YWNjdXJhdGUtZXdlLTU4LmNsZXJrLmFjY291bnRzLmRldiQ
+CLERK_SECRET_KEY=sk_test_0Fil0E7kPp7i7ASoE6xRODqxzLhEZu97Q5qaBizqIW
+NEXT_PUBLIC_SUPABASE_URL=https://hqdudeuoapouypiadogv.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=HIDDEN
+GOOGLE_GENERATIVE_AI_API_KEY=AIzaSyDl6E4BuJbQoDvocd1IoiFVM5uz5L-qlIg
+# Setup Instructions:
+# 1. Get Clerk keys from: https://dashboard.clerk.com/last-active?path=api-keys
+
+# Clerk Configuration (for authentication)
+
+# Supabase Configuration (for data storage)

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabase';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { getIO } from '@/lib/io';
 
 // Generate a random 6-character code
@@ -16,9 +16,10 @@ export async function POST() {
 
     // Check if Supabase client is available
     if (!supabase) {
+      console.error('Supabase client is not initialized. Check environment variables.');
       return NextResponse.json(
-        { success: false, error: 'Database not configured. Please set up environment variables.' },
-        { status: 500 }
+        { success: false, error: 'Database configuration missing. Please check your .env file.' },
+        { status: 503 }
       );
     }
 
@@ -34,17 +35,19 @@ export async function POST() {
     const code = generateGroupCode();
     console.log('Generated code:', code);
 
+    const id = randomUUID();
+
     // Create the group in Supabase
     const { data: group, error } = await supabase
-      .from('groups')
-      .insert({ code })
+      .from('Group')
+      .insert({ id, code })
       .select()
       .single();
 
     if (error) {
-      console.error('Error creating group:', error);
+      console.error('Error creating group in Supabase:', error);
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: `Database error: ${error.message}` },
         { status: 500 }
       );
     }
@@ -60,9 +63,9 @@ export async function POST() {
     // Return immediately without waiting for socket emission
     return NextResponse.json({ success: true, group });
   } catch (error) {
-    console.error('Error creating group:', error);
+    console.error('Unexpected error creating group:', error);
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Failed to create group' },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to create group due to an unexpected error' },
       { status: 500 }
     );
   }
@@ -79,10 +82,10 @@ export async function GET() {
     }
 
     const { data: groups, error } = await supabase
-      .from('groups')
+      .from('Group')
       .select(`
         *,
-        members (*)
+        Member (*)
       `);
 
     if (error) {

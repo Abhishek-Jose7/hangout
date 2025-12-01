@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabase';
-import { findOptimalLocations } from '@/lib/gemini';
+import { findOptimalLocations } from '@/lib/groq';
+import { isGeoapifyHealthy, searchPlace } from '@/lib/geoapify';
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,18 +24,18 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url);
     const groupId = url.searchParams.get('groupId');
-    
+
     if (!groupId) {
       return NextResponse.json(
         { success: false, error: 'Group ID is required' },
         { status: 400 }
       );
     }
-    
+
     // First, check if itineraries already exist for this group
     console.log('Checking for existing itineraries for group:', groupId);
     const { data: existingItineraries, error: itineraryError } = await supabase
-      .from('itineraries')
+      .from('Itinerary')
       .select('*')
       .eq('group_id', groupId)
       .order('created_at', { ascending: false })
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
 
     // Get all members of the group from Supabase
     const { data: members, error } = await supabase
-      .from('members')
+      .from('Member')
       .select('*')
       .eq('group_id', groupId);
 
@@ -77,7 +78,7 @@ export async function GET(request: NextRequest) {
         { status: 404 }
       );
     }
-    
+
     // Format members for the Gemini API
     const formattedMembers = members.map((member: { name: string; location: string; budget: number; mood_tags: string; preferred_date: string | null }) => ({
       name: member.name,
@@ -88,11 +89,11 @@ export async function GET(request: NextRequest) {
         : [],
       preferredDate: member.preferred_date || null
     }));
-    
+
     // Helper function to generate fallback locations
     function generateFallbackLocations(members: Array<{ name: string; location: string; budget: number; moodTags: string[]; preferredDate: string | null }>) {
       const avgBudget = members.reduce((sum, m) => sum + m.budget, 0) / members.length;
-      
+
       // Popular, proven locations in India with verified activities
       const fallbackOptions = [
         {
@@ -129,7 +130,7 @@ export async function GET(request: NextRequest) {
           estimatedCost: Math.min(avgBudget, 900)
         }
       ];
-      
+
       // Return 3 locations sorted by budget match
       return fallbackOptions
         .sort((a, b) => Math.abs(a.estimatedCost - avgBudget) - Math.abs(b.estimatedCost - avgBudget))
@@ -139,39 +140,39 @@ export async function GET(request: NextRequest) {
     // Get optimal locations using Gemini API with fallback
     let locations = [];
     let usedFallback = false;
-    
+
     try {
       // Pass isDatePlanner: false for regular group hangouts
       const locationsResult = await findOptimalLocations(formattedMembers, false);
       locations = locationsResult.locations || [];
     } catch (geminiError: unknown) {
       console.error('Gemini API error:', geminiError);
-      
+
       // Use fallback locations instead of returning error
       console.log('Using fallback locations due to API error');
       locations = generateFallbackLocations(formattedMembers);
       usedFallback = true;
     }
 
-    // Google Maps API key
-    const MAPS_API_KEY = "AIzaSyCseHoECDuGyH1atjLlTWDJBQKhQRI2HWU";
-    if (!MAPS_API_KEY) {
-      return NextResponse.json({ success: false, error: 'MAPS_API_KEY not set' }, { status: 500 });
-    }
+    // Check if Geoapify API is working
+    const geoapifyHealthy = await isGeoapifyHealthy();
+    console.log('Geoapify API healthy:', geoapifyHealthy);
 
     // Helper function to get coordinates for a location using Google Geocoding API
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async function geocodeLocation(locationName: string): Promise<{ lat: number; lng: number } | null> {
       try {
         const encodedLocation = encodeURIComponent(locationName);
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedLocation}&key=${MAPS_API_KEY}`;
+        const url = `https://api.geoapify.com/v1/geocode/search?text=${encodedLocation}&apiKey=7995485a15804ab1ac4080a06726595f&limit=1`;
 
         const response = await fetch(url);
         const data = await response.json();
 
-        if (data.results && data.results.length > 0) {
-          const location = data.results[0].geometry.location;
-          return { lat: location.lat, lng: location.lng };
+        if (data.features && data.features.length > 0) {
+          const coordinates = data.features[0].geometry?.coordinates;
+          if (coordinates && coordinates.length >= 2) {
+            return { lat: coordinates[1], lng: coordinates[0] };
+          }
         }
         return null;
       } catch (error) {
@@ -187,16 +188,32 @@ export async function GET(request: NextRequest) {
       const dLat = (coord2.lat - coord1.lat) * Math.PI / 180;
       const dLng = (coord2.lng - coord1.lng) * Math.PI / 180;
 
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(coord1.lat * Math.PI / 180) * Math.cos(coord2.lat * Math.PI / 180) *
-                Math.sin(dLng/2) * Math.sin(dLng/2);
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(coord1.lat * Math.PI / 180) * Math.cos(coord2.lat * Math.PI / 180) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
 
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c; // Distance in km
     }
 
-    // Helper to fetch place details from Google Maps Places API with enhanced validation
-    async function fetchPlaceDetails(placeName: string, location: string, retryCount = 0): Promise<ItineraryDetail> {
+    // Helper to fetch place details from Geoapify API with enhanced validation
+    async function fetchPlaceDetails(placeName: string, location: string): Promise<ItineraryDetail> {
+      // If Geoapify API is not healthy, return basic details without API calls
+      if (!geoapifyHealthy) {
+        console.log(`Geoapify API not available, returning basic details for '${placeName}'`);
+        return {
+          address: `${placeName}, ${location}`,
+          rating: null,
+          photos: [],
+          priceLevel: null,
+          name: placeName,
+          placeId: '',
+          mapsLink: `https://www.openstreetmap.org/search?query=${encodeURIComponent(placeName + ' ' + location)}`,
+          reviews: [],
+          userRatingsTotal: 0
+        };
+      }
+
       try {
         // Clean and validate the place name
         const cleanPlaceName = placeName.trim();
@@ -205,82 +222,19 @@ export async function GET(request: NextRequest) {
           return { address: '', rating: null, photos: [], priceLevel: null, name: placeName, placeId: '', mapsLink: '', reviews: [], userRatingsTotal: 0 };
         }
 
-        // Try different search strategies
-        const queries = [
-          `${cleanPlaceName} near ${location}`,
-          `${cleanPlaceName} ${location}`,
-          cleanPlaceName
-        ];
-
-        for (const query of queries) {
-          const encodedQuery = encodeURIComponent(query);
-          const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodedQuery}&key=${MAPS_API_KEY}`;
-          
-      const res = await fetch(url);
-          if (!res.ok) {
-            console.error(`Maps API error: ${res.status} ${res.statusText}`);
-            continue;
-          }
-
-      const data = await res.json();
-          
-          // Check for API errors
-          if (data.status === 'ZERO_RESULTS') {
-            console.warn(`No results for query: '${query}'`);
-            continue;
-          }
-          
-          if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-            console.error(`Maps API status: ${data.status}`, data.error_message);
-            continue;
-          }
-
-      if (data.results && data.results.length > 0) {
-        const place = data.results[0];
-            const placeId = place.place_id;
-            
-            // Validate that the place is relevant
-            const relevanceScore = calculateRelevance(cleanPlaceName, place.name, place.types || []);
-            if (relevanceScore < 0.3 && retryCount === 0) {
-              console.warn(`Low relevance score (${relevanceScore}) for '${cleanPlaceName}' -> '${place.name}'`);
-              continue;
-            }
-            
-            // Fetch place details including reviews
-            let reviews: Array<{author_name: string; rating: number; text: string; time: number}> = [];
-            let userRatingsTotal = 0;
-            if (placeId) {
-              try {
-                const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=reviews,user_ratings_total,website,opening_hours&key=${MAPS_API_KEY}`;
-                const detailsRes = await fetch(detailsUrl);
-                const detailsData = await detailsRes.json();
-                if (detailsData.status === 'OK' && detailsData.result) {
-                  reviews = detailsData.result.reviews || [];
-                  userRatingsTotal = detailsData.result.user_ratings_total || 0;
-                }
-              } catch (error) {
-                console.error('Error fetching place details:', error);
-              }
-            }
-            
+        // Use Geoapify to search for the place
+        const placeDetails = await searchPlace(placeName, location);
         return {
-          address: place.formatted_address || '',
-          rating: place.rating || null,
-              photos: place.photos ? place.photos.slice(0, 3).map((p: { photo_reference: string }) => 
-                `https://maps.googleapis.com/maps/api/place/photo?maxwidth=600&photoreference=${p.photo_reference}&key=${MAPS_API_KEY}`
-              ) : [],
-          priceLevel: place.price_level || null,
-              name: place.name || placeName,
-              placeId: placeId || '',
-              mapsLink: placeId ? `https://www.google.com/maps/place/?q=place_id:${placeId}` : '',
-              reviews: reviews.slice(0, 3),
-              userRatingsTotal: userRatingsTotal
-            };
-          }
-        }
-        
-        console.warn(`Could not find place '${placeName}' near '${location}' after trying all strategies`);
-        return { address: '', rating: null, photos: [], priceLevel: null, name: placeName, placeId: '', mapsLink: '', reviews: [], userRatingsTotal: 0 };
+          address: placeDetails.address,
+          rating: placeDetails.rating,
+          photos: placeDetails.photos,
+          priceLevel: placeDetails.priceLevel,
+          name: placeDetails.name,
+          placeId: placeDetails.placeId,
+          mapsLink: placeDetails.mapsLink,
+          reviews: placeDetails.reviews,
+          userRatingsTotal: placeDetails.userRatingsTotal
+        };
       } catch (error) {
         console.error(`Error in fetchPlaceDetails for '${placeName}':`, error);
         return { address: '', rating: null, photos: [], priceLevel: null, name: placeName, placeId: '', mapsLink: '', reviews: [], userRatingsTotal: 0 };
@@ -288,26 +242,27 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate relevance score between search query and result
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     function calculateRelevance(query: string, resultName: string, types: string[]): number {
       const queryLower = query.toLowerCase();
       const resultLower = resultName.toLowerCase();
-      
+
       // Exact match
       if (queryLower === resultLower) return 1.0;
-      
+
       // Contains match
       if (resultLower.includes(queryLower) || queryLower.includes(resultLower)) return 0.8;
-      
+
       // Word overlap
       const queryWords = queryLower.split(/\s+/);
       const resultWords = resultLower.split(/\s+/);
       const overlap = queryWords.filter(word => resultWords.some(rw => rw.includes(word) || word.includes(rw)));
       const overlapScore = overlap.length / Math.max(queryWords.length, resultWords.length);
-      
+
       // Bonus for having relevant types
       const relevantTypes = ['restaurant', 'cafe', 'store', 'point_of_interest', 'establishment'];
       const hasRelevantType = types.some(t => relevantTypes.includes(t));
-      
+
       return overlapScore * (hasRelevantType ? 1.0 : 0.7);
     }
 
@@ -341,18 +296,18 @@ export async function GET(request: NextRequest) {
           return details as ItineraryDetail;
         })
       );
-      
+
       // Quality check: count how many itinerary items have valid data
       const validItems = itineraryDetails.filter(d => d.address && d.placeId);
       const validityRatio = validItems.length / Math.max(itineraryDetails.length, 1);
-      
+
       console.log(`Location '${loc.name}': ${validItems.length}/${itineraryDetails.length} items have valid Maps data (${(validityRatio * 100).toFixed(1)}%)`);
-      
+
       // If less than 50% of items are valid, this location is low quality
       if (validityRatio < 0.5 && itineraryDetails.length > 0) {
         console.warn(`Low quality location detected: '${loc.name}' (only ${(validityRatio * 100).toFixed(1)}% valid items)`);
       }
-      
+
       // Filter out any itinerary items that match the location name (duplicates)
       const filteredItineraryDetails = itineraryDetails.filter(d => {
         const itemNameLower = d.name.toLowerCase();
@@ -360,14 +315,14 @@ export async function GET(request: NextRequest) {
         // Remove if the item name contains the exact location name
         return !itemNameLower.includes(locationNameLower) && !locationNameLower.includes(itemNameLower);
       });
-      
+
       // If we filtered everything out or all failed geocoding, don't add a fallback
       const allFailed = filteredItineraryDetails.length === 0 || filteredItineraryDetails.every((d: ItineraryDetail) => !d.address);
       if (allFailed) {
         console.warn(`All activities for location '${loc.name}' failed geocoding or were duplicates. Skipping fallback.`);
         // Don't add the location name itself - just use what we have
       }
-      
+
       return {
         ...loc,
         itineraryDetails: filteredItineraryDetails,
@@ -380,7 +335,7 @@ export async function GET(request: NextRequest) {
     const qualityLocations = enhancedLocations.filter(loc => {
       const score = (loc as { qualityScore?: number }).qualityScore || 0;
       const hasItinerary = loc.itineraryDetails && loc.itineraryDetails.length > 0;
-      
+
       // Only filter out completely broken locations (0% valid AND no itinerary)
       if (score === 0 && !hasItinerary) {
         console.warn(`Filtering out completely empty location: '${loc.name}'`);
@@ -391,21 +346,21 @@ export async function GET(request: NextRequest) {
 
     // Always keep at least 3 locations, preferably all that were generated
     const finalLocations = qualityLocations.length >= 3 ? qualityLocations : enhancedLocations.slice(0, Math.max(3, qualityLocations.length));
-    
+
     console.log(`Final locations count: ${finalLocations.length} (filtered ${enhancedLocations.length - finalLocations.length})`);
 
     // Store the generated itineraries in the database for future use
     try {
       // Get the current user's member ID
       const { data: currentMember } = await supabase
-        .from('members')
+        .from('Member')
         .select('id')
         .eq('clerk_user_id', userId)
         .eq('group_id', groupId)
         .single();
 
       const { error: storeError } = await supabase
-        .from('itineraries')
+        .from('Itinerary')
         .insert({
           group_id: groupId,
           locations: finalLocations,
@@ -423,8 +378,8 @@ export async function GET(request: NextRequest) {
       // Don't fail the request if storing fails
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       locations: finalLocations,
       usedFallback: usedFallback,
       message: usedFallback ? 'Using curated locations due to high demand. These are proven, popular meetup spots!' : undefined

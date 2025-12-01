@@ -26,16 +26,16 @@ export async function GET(
 
     // Get all groups where the user is a member
     const { data: memberships, error: membershipError } = await supabase
-      .from('members')
+      .from('Member')
       .select(`
         group_id,
-        groups (
+        Group (
           id,
           code,
           name,
           description,
           created_at,
-          members (
+          Member (
             id,
             name,
             location,
@@ -57,12 +57,12 @@ export async function GET(
     // Transform the data to match our Group interface
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const groups = memberships?.map((membership: any) => ({
-      id: membership.groups?.id,
-      code: membership.groups?.code,
-      name: membership.groups?.name,
-      description: membership.groups?.description,
-      created_at: membership.groups?.created_at,
-      members: membership.groups?.members || []
+      id: membership.Group?.id,
+      code: membership.Group?.code,
+      name: membership.Group?.name,
+      description: membership.Group?.description,
+      created_at: membership.Group?.created_at,
+      members: membership.Group?.Member || []
     })) || [];
 
     // Also get vote counts and finalized index for each group
@@ -72,7 +72,7 @@ export async function GET(
           // Get vote counts
           if (!supabase) return group;
           const { data: votes, error: voteError } = await supabase
-            .from('itinerary_votes')
+            .from('ItineraryVote')
             .select('itinerary_idx')
             .eq('group_id', group.id);
 
@@ -99,7 +99,7 @@ export async function GET(
 
           // Get cached locations if available
           const { data: itinerary } = await supabase
-            .from('itineraries')
+            .from('Itinerary')
             .select('locations')
             .eq('group_id', group.id)
             .single();

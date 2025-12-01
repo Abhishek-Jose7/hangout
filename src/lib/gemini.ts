@@ -1,18 +1,45 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Initialize the Gemini API client
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+// Initialize multiple Gemini API clients for load balancing
+const geminiApiKeys = [
+  process.env.GEMINI_API_KEY || '',
+  process.env.GEMINI_API_KEY_2 || ''
+].filter(key => key && key.trim() !== '');
 
-export async function findOptimalLocations(members: { name: string; location: string; budget: number; moodTags: string[]; preferredDate: string | null }[], isDatePlanner: boolean = false) {
-  try {
+let currentApiKeyIndex = 0;
+
+// Function to get the next available API key
+function getNextApiKey(): string {
+  if (geminiApiKeys.length === 0) {
+    throw new Error('No Gemini API keys configured');
+  }
+  
+  const apiKey = geminiApiKeys[currentApiKeyIndex];
+  currentApiKeyIndex = (currentApiKeyIndex + 1) % geminiApiKeys.length;
+  return apiKey;
+}
+
+// Function to create a new Gemini client with the next API key
+function createGeminiClient() {
+  const apiKey = getNextApiKey();
+  return new GoogleGenerativeAI(apiKey);
+}
+
+export async function findOptimalLocations(members: { name: string; location: string; budget: number; moodTags: string[]; preferredDate: string | null }[], isDatePlanner: boolean = false, dateType: string = 'romantic') {
+  let lastError: Error | null = null;
+  
+  // Try each API key until one works
+  for (let attempt = 0; attempt < geminiApiKeys.length; attempt++) {
+    try {
+      const genAI = createGeminiClient();
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     
     const locations = members.map(member => member.location);
     const budgets = members.map(member => member.budget);
   const allMoodTags = members.flatMap(member => member.moodTags ?? []);
     
-    // Only treat as romantic date if explicitly requested through date planner feature
-    const isRomanticDate = isDatePlanner && members.length === 2;
+      // Only treat as date if explicitly requested through date planner feature
+      const isDate = isDatePlanner && members.length === 2;
 
     const averageBudget = budgets.reduce((a, b) => a + b, 0) / budgets.length;
 
@@ -25,8 +52,8 @@ export async function findOptimalLocations(members: { name: string; location: st
       Their budgets are: ${budgets.join(', ')} respectively (average: ₹${averageBudget}).
       The group's preferred moods/tags are: ${allMoodTags.join(', ')}${preferredDateText}.
 
-      ${isRomanticDate ?
-        `This appears to be a romantic date between 2 people${preferredDateText}. Suggest 3 REAL, EXISTING locations perfect for a romantic date with activities like cafes, beaches, movies, romantic walks, rooftop dining, live music venues, etc. Focus on intimate, cozy, and memorable experiences.` :
+        ${isDate ?
+          `This appears to be a ${dateType} date between 2 people${preferredDateText}. Suggest 3 REAL, EXISTING locations perfect for a ${dateType} date with activities that match the ${dateType} theme. Focus on creating memorable experiences appropriate for the date type.` :
         `Please find 3 optimal centroid meetup locations that are REAL, EXISTING places (specific neighborhoods, areas, or well-known districts) convenient and equally fair for everyone to meet. These must be actual places that exist on Google Maps.`
       }
 
@@ -39,8 +66,8 @@ export async function findOptimalLocations(members: { name: string; location: st
 
       For each location, suggest a realistic itinerary of SPECIFIC activities that people actually do when they hangout. Focus on specific, named places and activities like:
 
-      ${isRomanticDate ? `
-      ROMANTIC DATE ACTIVITIES (INDIA FOCUSED):
+        ${isDate ? `
+        ${dateType.toUpperCase()} DATE ACTIVITIES (INDIA FOCUSED):
       CAFES & COZY SPOTS:
       - "Starbucks Coffee" or "Cafe Coffee Day" (romantic cafes)
       - "Chaayos" or "Chai Point" (cozy tea spots)
@@ -226,7 +253,22 @@ export async function findOptimalLocations(members: { name: string; location: st
       throw new Error('Gemini API failed to return valid locations. Please try again.');
     }
   } catch (error) {
-    console.error('Error calling Gemini API:', error);
+      console.error(`Error with API key attempt ${attempt + 1}:`, error);
+      lastError = error as Error;
+      
+      // If this is a rate limit error, try the next API key
+      if (error instanceof Error && error.message.includes('429')) {
+        console.log(`Rate limit hit on API key ${attempt + 1}, trying next key...`);
+        continue;
+      }
+      
+      // If this is not a rate limit error, break out of the loop
+      break;
+    }
+  }
+  
+  // If all API keys failed, return fallback
+  console.error('All Gemini API keys failed. Last error:', lastError);
     return {
       locations: [
         {
@@ -238,4 +280,174 @@ export async function findOptimalLocations(members: { name: string; location: st
       ]
     };
   }
+
+export async function findOptimalDateItineraries(dateData: { location: string; budget: number; timePeriod: string; moodTags: string[]; dateType: string }) {
+  let lastError: Error | null = null;
+  
+  // Try each API key until one works
+  for (let attempt = 0; attempt < geminiApiKeys.length; attempt++) {
+    try {
+      const genAI = createGeminiClient();
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    
+      const { location, budget, timePeriod, moodTags, dateType } = dateData;
+
+      const prompt = `
+        Create 2-3 perfect date itineraries for a ${dateType} date in ${location} with a budget of ₹${budget} for a ${timePeriod} experience.
+        
+        The couple is interested in: ${moodTags.join(', ')}
+        
+        IMPORTANT REQUIREMENTS:
+        1. Focus on ACTUAL ACTIVITIES, not just restaurant or mall names
+        2. Each itinerary should have 3-5 specific activities
+        3. Include reasoning for why each activity is perfect for this type of date
+        4. Consider the time period: ${timePeriod}
+        5. Stay within budget: ₹${budget}
+        6. Make activities specific to ${location}
+        7. Include duration and cost estimates for each activity
+        8. Explain the reasoning behind the overall itinerary choice
+        
+        ACTIVITY EXAMPLES (specific places with activities):
+        - "Take a pottery class at Clay Station Pottery Studio in ${location}"
+        - "Go for a sunset photography walk at Lodhi Garden in ${location}"
+        - "Visit the National Gallery of Modern Art and discuss your favorite pieces"
+        - "Try street food at Chandni Chowk market in ${location}"
+        - "Take a boat ride on the Yamuna River and enjoy the city skyline"
+        - "Go to The Piano Man Jazz Club for live performances"
+        - "Visit the Red Fort and learn about its historical significance"
+        - "Have a picnic at India Gate lawns"
+        - "Go to the Dilli Haat cultural festival"
+        - "Take a walking tour of Old Delhi's hidden gems"
+        
+        IMPORTANT: For each activity, provide:
+        1. Specific place name (e.g., "Clay Station Pottery Studio", "Lodhi Garden")
+        2. General area/neighborhood in ${location}
+        3. What you'll actually do there
+        4. Why it's perfect for a ${dateType} date
+        
+        Format the response as VALID JSON with this EXACT structure:
+        {
+          "itineraries": [
+            {
+              "name": "Creative Itinerary Name",
+              "description": "Brief description of what makes this itinerary special",
+              "activities": [
+                {
+                  "name": "Specific Activity Name",
+                  "description": "Detailed description of what you'll do and why it's perfect",
+                  "duration": "X hours",
+                  "cost": "₹XXX-XXX"
+                }
+              ],
+              "totalCost": 800,
+              "reasoning": "Explain why this itinerary is perfect for a ${dateType} date, considering the location, budget, time period, and interests"
+            }
+          ]
+        }
+        
+        Make each itinerary unique and tailored to different aspects of the couple's interests.
+        Focus on creating memorable experiences, not just visiting places.
+      `;
+
+      const result = await model.generateContent(prompt);
+      const response = result.response;
+      const text = response.text();
+      console.log('Gemini API raw response for date itineraries:', text);
+      
+      // Try to extract and validate JSON from the response
+      try {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          throw new Error('No JSON found in response');
+        }
+        
+        const parsed = JSON.parse(jsonMatch[0]);
+        
+        // Validate the response structure
+        if (!parsed.itineraries || !Array.isArray(parsed.itineraries)) {
+          throw new Error('Invalid response structure: missing itineraries array');
+        }
+        
+        // Validate each itinerary
+        const validatedItineraries = parsed.itineraries
+          .filter((itinerary: { name?: string; description?: string; activities?: Array<{ name: string; description: string; duration: string; cost: string }>; totalCost?: number; reasoning?: string }) => {
+            // Must have all required fields
+            if (!itinerary.name || !itinerary.description || !itinerary.activities || !itinerary.totalCost || !itinerary.reasoning) {
+              console.warn('Skipping invalid itinerary:', itinerary);
+              return false;
+            }
+            
+            // Must have at least 3 activities
+            if (!Array.isArray(itinerary.activities) || itinerary.activities.length < 3) {
+              console.warn('Skipping itinerary with insufficient activities:', itinerary.name);
+              return false;
+            }
+            
+            // Cost must be reasonable
+            if (itinerary.totalCost < 100 || itinerary.totalCost > budget * 1.5) {
+              console.warn('Skipping itinerary with unreasonable cost:', itinerary.name, itinerary.totalCost);
+              return false;
+            }
+            
+            return true;
+          });
+        
+        if (validatedItineraries.length === 0) {
+          throw new Error('No valid itineraries after validation');
+        }
+        
+        console.log(`Validated ${validatedItineraries.length} itineraries out of ${parsed.itineraries.length}`);
+        
+        return { itineraries: validatedItineraries };
+      } catch (err) {
+        console.error('Gemini API parsing/validation error:', err, '\nRaw response:', text);
+        throw new Error('Gemini API failed to return valid itineraries. Please try again.');
+      }
+    } catch (error) {
+      console.error(`Error with API key attempt ${attempt + 1}:`, error);
+      lastError = error as Error;
+      
+      // If this is a rate limit error, try the next API key
+      if (error instanceof Error && error.message.includes('429')) {
+        console.log(`Rate limit hit on API key ${attempt + 1}, trying next key...`);
+        continue;
+      }
+      
+      // If this is not a rate limit error, break out of the loop
+      break;
+    }
+  }
+  
+  // If all API keys failed, return fallback
+  console.error('All Gemini API keys failed. Last error:', lastError);
+  return {
+    itineraries: [
+      {
+        name: "Sample Itinerary",
+        description: "This is a fallback itinerary since the API call failed",
+        activities: [
+          {
+            name: "Visit local attractions",
+            description: "Explore the area together",
+            duration: "2-3 hours",
+            cost: "₹200-500"
+          },
+          {
+            name: "Have a meal together",
+            description: "Enjoy local cuisine",
+            duration: "1-2 hours",
+            cost: "₹300-800"
+          },
+          {
+            name: "Take a walk and chat",
+            description: "Spend quality time together",
+            duration: "1 hour",
+            cost: "₹0"
+          }
+        ],
+        totalCost: 500,
+        reasoning: "A simple fallback itinerary for when the AI service is unavailable"
+      }
+    ]
+  };
 }
