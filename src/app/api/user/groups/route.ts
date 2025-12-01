@@ -22,16 +22,16 @@ export async function GET() {
 
     // Get all groups where the user is a member
     const { data: groups, error } = await supabase
-      .from('groups')
+      .from('Group')
       .select(`
         *,
-        members!inner (
+        Member!inner (
           id,
           name,
-          clerk_user_id
+          clerkUserId
         )
       `)
-      .eq('members.clerk_user_id', userId);
+      .eq('Member.clerkUserId', userId);
 
     if (error) {
       console.error('Error fetching user groups:', error);
@@ -45,8 +45,8 @@ export async function GET() {
     const formattedGroups = groups?.map(group => ({
       ...group,
       isCreator: false, // We'll need to determine this differently
-      memberCount: group.members?.length || 0,
-      userMember: group.members?.[0] || null
+      memberCount: group.Member?.length || 0,
+      userMember: group.Member?.[0] || null
     })) || [];
 
     return NextResponse.json({

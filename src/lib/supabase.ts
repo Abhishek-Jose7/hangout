@@ -81,10 +81,11 @@ export type Database = {
           name: string
           location: string
           budget: number
-          mood_tags: string
-          clerk_user_id: string | null
+          moodTags: string
+          clerkUserId: string | null
           email: string | null
-          group_id: string
+          groupId: string
+          is_admin: boolean
           created_at: string
           updated_at: string
         }
@@ -93,10 +94,11 @@ export type Database = {
           name: string
           location: string
           budget: number
-          mood_tags: string
-          clerk_user_id?: string | null
+          moodTags: string
+          clerkUserId?: string | null
           email?: string | null
-          group_id: string
+          groupId: string
+          is_admin?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -105,10 +107,11 @@ export type Database = {
           name?: string
           location?: string
           budget?: number
-          mood_tags?: string
-          clerk_user_id?: string | null
+          moodTags?: string
+          clerkUserId?: string | null
           email?: string | null
-          group_id?: string
+          groupId?: string
+          is_admin?: boolean
           created_at?: string
           updated_at?: string
         }

@@ -32,10 +32,10 @@ export async function DELETE(request: NextRequest) {
 
     // Check if user is a member of the group
     const { data: member } = await supabase
-      .from('members')
+      .from('Member')
       .select('id')
-      .eq('clerk_user_id', userId)
-      .eq('group_id', groupId)
+      .eq('clerkUserId', userId)
+      .eq('groupId', groupId)
       .single();
 
     if (!member) {
@@ -47,9 +47,9 @@ export async function DELETE(request: NextRequest) {
 
     // Delete all itineraries for this group
     const { error } = await supabase
-      .from('itineraries')
+      .from('Itineraries')
       .delete()
-      .eq('group_id', groupId);
+      .eq('groupId', groupId);
 
     if (error) {
       console.error('Error clearing itineraries:', error);

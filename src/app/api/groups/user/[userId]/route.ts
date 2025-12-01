@@ -28,7 +28,7 @@ export async function GET(
     const { data: memberships, error: membershipError } = await supabase
       .from('Member')
       .select(`
-        group_id,
+        groupId,
         Group (
           id,
           code,
@@ -40,11 +40,11 @@ export async function GET(
             name,
             location,
             budget,
-            clerk_user_id
+            clerkUserId
           )
         )
       `)
-      .eq('clerk_user_id', userId);
+      .eq('clerkUserId', userId);
 
     if (membershipError) {
       console.error('Error fetching user groups:', membershipError);
@@ -53,7 +53,6 @@ export async function GET(
         { status: 500 }
       );
     }
-
     // Transform the data to match our Group interface
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const groups = memberships?.map((membership: any) => ({
@@ -72,9 +71,9 @@ export async function GET(
           // Get vote counts
           if (!supabase) return group;
           const { data: votes, error: voteError } = await supabase
-            .from('ItineraryVote')
-            .select('itinerary_idx')
-            .eq('group_id', group.id);
+            .from('ItineraryVotes')
+            .select('itineraryIdx')
+            .eq('groupId', group.id);
 
           if (voteError) {
             console.error('Error fetching votes for group:', group.id, voteError);
@@ -84,7 +83,7 @@ export async function GET(
           // Count votes by itinerary index
           const voteCounts: Record<number, number> = {};
           votes?.forEach(vote => {
-            voteCounts[vote.itinerary_idx] = (voteCounts[vote.itinerary_idx] || 0) + 1;
+            voteCounts[vote.itineraryIdx] = (voteCounts[vote.itineraryIdx] || 0) + 1;
           });
 
           // Find finalized index (itinerary with most votes)
@@ -99,9 +98,9 @@ export async function GET(
 
           // Get cached locations if available
           const { data: itinerary } = await supabase
-            .from('Itinerary')
+            .from('Itineraries')
             .select('locations')
-            .eq('group_id', group.id)
+            .eq('groupId', group.id)
             .single();
 
           return {

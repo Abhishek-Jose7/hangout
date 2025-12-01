@@ -26,19 +26,19 @@ export async function GET(
 
     // Get group details
     const { data: group, error: groupError } = await supabase
-      .from('groups')
+      .from('Group')
       .select(`
         id,
         code,
         name,
         description,
         created_at,
-        members (
+        Member (
           id,
           name,
           location,
           budget,
-          clerk_user_id
+          clerkUserId
         )
       `)
       .eq('code', code)
@@ -59,7 +59,7 @@ export async function GET(
         name: group.name,
         description: group.description,
         created_at: group.created_at,
-        members: group.members || []
+        members: group.Member || []
       }
     });
 

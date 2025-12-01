@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabase';
 import { getIO } from '@/lib/io';
+import { randomUUID } from 'crypto';
 
 // Create a new member
 export async function POST(request: NextRequest) {
@@ -14,15 +15,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('POST /api/members - Starting request processing');
+
     const { userId } = await auth();
+    console.log('Clerk auth result - userId:', userId);
+
     if (!userId) {
+      console.error('Authentication failed - no userId from Clerk');
       return NextResponse.json(
-        { success: false, error: 'Authentication required' },
+        { success: false, error: 'Authentication required. Please sign in.' },
         { status: 401 }
       );
     }
 
     const payload = await request.json();
+    console.log('Request payload received:', { ...payload, clerkUserId: userId });
     const { name, location, budget, groupId, moodTags, email } = payload;
 
     // Validate required fields
@@ -72,15 +79,27 @@ export async function POST(request: NextRequest) {
 
     const { data: existingMember, error: existingError } = await supabase
       .from('Member')
-      .select('id, name, clerk_user_id')
-      .eq('clerk_user_id', userId)
-      .eq('group_id', groupId)
+      .select('id, name, clerkUserId')
+      .eq('clerkUserId', userId)
+      .eq('groupId', groupId)
       .single();
 
     if (existingError && existingError.code !== 'PGRST116') { // PGRST116 is "not found" error
-      console.error('Error checking existing member:', existingError);
+      console.error('Error checking existing member:', {
+        error: existingError,
+        code: existingError.code,
+        message: existingError.message,
+        details: existingError.details,
+        hint: existingError.hint,
+        userId,
+        groupId
+      });
       return NextResponse.json(
-        { success: false, error: 'Failed to check membership' },
+        {
+          success: false,
+          error: `Failed to check membership: ${existingError.message || 'Unknown error'}`,
+          details: existingError.code
+        },
         { status: 500 }
       );
     }
@@ -114,13 +133,14 @@ export async function POST(request: NextRequest) {
     const { data: member, error: createError } = await supabase
       .from('Member')
       .insert({
+        id: randomUUID(),
         name: name.trim(),
         location: location.trim(),
         budget: budgetNum,
-        mood_tags: Array.isArray(moodTags) ? moodTags.join(',') : '',
-        clerk_user_id: userId,
+        moodTags: Array.isArray(moodTags) ? moodTags.join(',') : '',
+        clerkUserId: userId,
         email: email || null,
-        group_id: groupId
+        groupId: groupId
       })
       .select()
       .single();

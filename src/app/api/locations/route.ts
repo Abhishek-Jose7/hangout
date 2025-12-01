@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabase';
-import { findOptimalLocations } from '@/lib/groq';
+import { findOptimalLocations } from '@/lib/ai';
 import { isGeoapifyHealthy, searchPlace } from '@/lib/geoapify';
 
 export async function GET(request: NextRequest) {
@@ -35,9 +35,9 @@ export async function GET(request: NextRequest) {
     // First, check if itineraries already exist for this group
     console.log('Checking for existing itineraries for group:', groupId);
     const { data: existingItineraries, error: itineraryError } = await supabase
-      .from('Itinerary')
+      .from('Itineraries')
       .select('*')
-      .eq('group_id', groupId)
+      .eq('groupId', groupId)
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     const { data: members, error } = await supabase
       .from('Member')
       .select('*')
-      .eq('group_id', groupId);
+      .eq('groupId', groupId);
 
     if (error) {
       console.error('Error fetching members:', error);
@@ -355,14 +355,14 @@ export async function GET(request: NextRequest) {
       const { data: currentMember } = await supabase
         .from('Member')
         .select('id')
-        .eq('clerk_user_id', userId)
-        .eq('group_id', groupId)
+        .eq('clerkUserId', userId)
+        .eq('groupId', groupId)
         .single();
 
       const { error: storeError } = await supabase
-        .from('Itinerary')
+        .from('Itineraries')
         .insert({
-          group_id: groupId,
+          groupId: groupId,
           locations: finalLocations,
           created_by: currentMember?.id || null
         });

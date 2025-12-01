@@ -37,10 +37,10 @@ export async function POST(request: NextRequest) {
 
     // Remove any previous vote by this member in this group
     const { error: deleteError } = await supabase
-      .from('ItineraryVote')
+      .from('ItineraryVotes')
       .delete()
-      .eq('group_id', groupId)
-      .eq('member_id', memberId);
+      .eq('groupId', groupId)
+      .eq('memberId', memberId);
 
     if (deleteError) {
       console.error('Error deleting previous vote:', deleteError);
@@ -49,11 +49,11 @@ export async function POST(request: NextRequest) {
 
     // Add new vote
     const { error: createError } = await supabase
-      .from('ItineraryVote')
+      .from('ItineraryVotes')
       .insert({
-        group_id: groupId,
-        member_id: memberId,
-        itinerary_idx: itineraryIdx
+        groupId: groupId,
+        memberId: memberId,
+        itineraryIdx: itineraryIdx
       });
 
     if (createError) {
@@ -63,9 +63,9 @@ export async function POST(request: NextRequest) {
 
     // Count votes for each itinerary
     const { data: votes, error: votesError } = await supabase
-      .from('ItineraryVote')
-      .select('itinerary_idx')
-      .eq('group_id', groupId);
+      .from('ItineraryVotes')
+      .select('itineraryIdx')
+      .eq('groupId', groupId);
 
     if (votesError) {
       console.error('Error fetching votes:', votesError);
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     const voteCounts: Record<number, number> = {};
     votes?.forEach((vote) => {
-      voteCounts[vote.itinerary_idx] = (voteCounts[vote.itinerary_idx] || 0) + 1;
+      voteCounts[vote.itineraryIdx] = (voteCounts[vote.itineraryIdx] || 0) + 1;
     });
 
     // Find the itinerary with the most votes

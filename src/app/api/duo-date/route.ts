@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabase';
-import { findOptimalDateItineraries } from '@/lib/groq';
+import { findOptimalDateItineraries } from '@/lib/ai';
 import { isGeoapifyHealthy, searchPlace } from '@/lib/geoapify';
 
 type Activity = {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { 
+    const {
       location,
       budget,
       timePeriod,
@@ -66,10 +66,10 @@ export async function POST(request: NextRequest) {
     // Helper function to generate fallback itineraries for dates
     function generateFallbackDateItineraries(dateData: { location: string; budget: number; timePeriod: string; moodTags: string[]; dateType: string }) {
       const { budget, moodTags, dateType } = dateData;
-      
+
       // Generate 2-3 activity-focused itineraries based on date type and mood
       const itineraries = [];
-      
+
       if (dateType === 'romantic') {
         itineraries.push(
           {
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
           }
         );
       }
-      
+
       if (dateType === 'adventure' || moodTags.includes('Adventure')) {
         itineraries.push(
           {
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
           }
         );
       }
-      
+
       if (dateType === 'casual' || moodTags.includes('Food') || moodTags.includes('Culture')) {
         itineraries.push(
           {
@@ -180,21 +180,21 @@ export async function POST(request: NextRequest) {
           }
         );
       }
-      
+
       return itineraries.slice(0, 3);
     }
 
     // Get optimal itineraries using Gemini API with fallback
     let itineraries = [];
     let usedFallback = false;
-    
+
     try {
       // Call a new function for date itineraries
       const itinerariesResult = await findOptimalDateItineraries(dateData);
       itineraries = itinerariesResult.itineraries || [];
     } catch (geminiError: unknown) {
       console.error('Gemini API error:', geminiError);
-      
+
       // Use fallback itineraries instead of returning error
       console.log('Using fallback itineraries due to API error');
       itineraries = generateFallbackDateItineraries(dateData);
@@ -250,15 +250,15 @@ export async function POST(request: NextRequest) {
           placeDetails
         };
       }));
-      
+
       return {
         ...itinerary,
         activities: enhancedActivities
       };
     }));
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       itineraries: enhancedItineraries,
       usedFallback: usedFallback,
       dateType: dateType,

@@ -402,9 +402,21 @@ export default function GroupPage() {
         : await fetch('/api/members', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('API Error:', errorData);
-        throw new Error(errorData.error || `Server error: ${response.status}`);
+        let errorData;
+        let errorMessage = `Server error: ${response.status}`;
+
+        try {
+          errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+          // Response might not be JSON (e.g., HTML error page)
+          const textError = await response.text();
+          console.error('Error response text:', textError.substring(0, 500));
+        }
+
+        console.error('API Error - Status:', response.status, 'Data:', errorData);
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -598,7 +610,7 @@ export default function GroupPage() {
                   Group Members
                 </h2>
                 <span className="bg-white/20 text-white text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">
-                  {group?.members.length || 0}
+                  {group?.members?.length || 0}
                 </span>
               </div>
               <div className="p-6">
