@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
           console.error('Geocoding error for member:', member.name, err);
         }
 
-        let travelTime = {
+        const travelTime = {
           memberId: member.id,
           memberName: member.name,
           memberLocation: member.location,
