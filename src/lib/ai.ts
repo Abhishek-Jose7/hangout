@@ -229,7 +229,7 @@ Return ONLY valid JSON (no markdown) in this format:
   ]
 }`;
 
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         const result = await model.generateContent(prompt);
         const text = result.response.text();
 
@@ -292,7 +292,7 @@ Return ONLY valid JSON with real, highly-rated places in India:
 }`;
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         const result = await model.generateContent(prompt);
         const text = result.response.text();
 

@@ -91,9 +91,10 @@ export type Database = {
           name: string
           location: string
           budget: number
-          moodTags: string
+          mood_tags: string
           is_admin: boolean
           created_at: string
+          preferred_date: string | null
         }
         Insert: {
           id?: string
@@ -102,9 +103,10 @@ export type Database = {
           name: string
           location: string
           budget: number
-          moodTags: string
+          mood_tags: string
           is_admin?: boolean
           created_at?: string
+          preferred_date?: string | null
         }
         Update: {
           id?: string
@@ -113,9 +115,10 @@ export type Database = {
           name?: string
           location?: string
           budget?: number
-          moodTags?: string
+          mood_tags?: string
           is_admin?: boolean
           created_at?: string
+          preferred_date?: string | null
         }
       },
       ItineraryVotes: {

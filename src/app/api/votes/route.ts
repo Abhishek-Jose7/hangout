@@ -2,6 +2,85 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabase';
 
+// GET: Fetch votes for a group
+export async function GET(request: NextRequest) {
+  try {
+    // Check if Supabase client is available
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: 'Database not configured' },
+        { status: 500 }
+      );
+    }
+
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const url = new URL(request.url);
+    const groupId = url.searchParams.get('groupId');
+
+    if (!groupId) {
+      return NextResponse.json(
+        { success: false, error: 'Group ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Get all votes for the group
+    const { data: votes, error } = await supabase
+      .from('ItineraryVotes')
+      .select('itineraryIdx, memberId')
+      .eq('groupId', groupId);
+
+    if (error) {
+      console.error('Error fetching votes:', error);
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch votes' },
+        { status: 500 }
+      );
+    }
+
+    // Count votes for each itinerary
+    const voteCounts: Record<number, number> = {};
+    votes?.forEach((vote) => {
+      voteCounts[vote.itineraryIdx] = (voteCounts[vote.itineraryIdx] || 0) + 1;
+    });
+
+    // Get the current user's member ID and their vote
+    const { data: currentMember } = await supabase
+      .from('Member')
+      .select('id')
+      .eq('clerkUserId', userId)
+      .eq('groupId', groupId)
+      .single();
+
+    let userVote: number | undefined;
+    if (currentMember) {
+      const memberVote = votes?.find(v => v.memberId === currentMember.id);
+      if (memberVote) {
+        userVote = memberVote.itineraryIdx;
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      voteCounts,
+      userVote
+    });
+  } catch (error) {
+    console.error('Error fetching votes:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch votes' },
+      { status: 500 }
+    );
+  }
+}
+
 // POST: Cast or update a vote for an itinerary
 export async function POST(request: NextRequest) {
   try {

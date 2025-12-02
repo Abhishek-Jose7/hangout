@@ -141,7 +141,7 @@ async function scrapeAndExtractPlaces(url: string, mood: string, location: strin
         const textContent = $('body').text().replace(/\s+/g, ' ').substring(0, 15000); // Limit length
 
         // Use Gemini to parse the unstructured text
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         const prompt = `
       I have scraped a webpage about "Best ${mood} places in ${location}".
       Extract a list of specific venues/places mentioned in this text.
@@ -233,7 +233,7 @@ export async function searchPlacesByMood(
         // If scraping failed, fallback to Gemini generation (simulated scraping)
         if (allPlaces.length === 0) {
             console.log('Scraping yielded no results, using Gemini knowledge base...');
-            const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
             const prompt = `
         List 5 real, highly-rated ${moodTags.join(' and ')} places in ${location}.
         Return ONLY valid JSON:

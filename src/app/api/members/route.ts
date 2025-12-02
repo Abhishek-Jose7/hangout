@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         location: location.trim(),
         budget: budgetNum,
-        moodTags: Array.isArray(moodTags) ? moodTags.join(',') : '',
+        mood_tags: Array.isArray(moodTags) ? moodTags.join(',') : (moodTags || ''),
         clerkUserId: userId,
         email: email || null,
         groupId: groupId
