@@ -32,8 +32,17 @@ export default function LiveMap({ places, center, className = "" }: LiveMapProps
     // Dynamically import Leaflet
     const loadMap = async () => {
       try {
+        // Clean up existing map instance before creating a new one
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.remove();
+          mapInstanceRef.current = null;
+        }
+
         const L = await import('leaflet');
         
+        // Check if component is still mounted (mapRef still exists)
+        if (!mapRef.current) return;
+
         // Fix for default markers in Next.js
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -60,7 +69,7 @@ export default function LiveMap({ places, center, className = "" }: LiveMapProps
         }
 
         // Create map
-        const map = L.map(mapRef.current!).setView([mapCenter.lat, mapCenter.lng], 13);
+        const map = L.map(mapRef.current).setView([mapCenter.lat, mapCenter.lng], 13);
 
         // Add OpenStreetMap tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -105,12 +114,6 @@ export default function LiveMap({ places, center, className = "" }: LiveMapProps
         }
 
         mapInstanceRef.current = map;
-
-        return () => {
-          if (mapInstanceRef.current) {
-            mapInstanceRef.current.remove();
-          }
-        };
       } catch (error) {
         console.error('Error loading map:', error);
       }
@@ -121,6 +124,7 @@ export default function LiveMap({ places, center, className = "" }: LiveMapProps
     return () => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
       }
     };
   }, [places, center]);
