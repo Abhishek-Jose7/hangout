@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import LiveMap from '@/components/LiveMap';
 import { useSocket } from '@/hooks/useSocket';
+import { useRealtime } from '@/hooks/useRealtime';
 import ExpenseTracker from '@/components/ExpenseTracker';
 import TimeSlotVoting from '@/components/TimeSlotVoting';
 import RankedVoting from '@/components/RankedVoting';
@@ -66,6 +67,7 @@ export default function GroupPage() {
   const router = useRouter();
   const { user, isLoaded: isUserLoaded } = useUser();
   const { socket } = useSocket();
+  const { subscribeToGroup, unsubscribeFromGroup } = useRealtime();
 
   const code = params?.code as string;
 
@@ -136,13 +138,17 @@ export default function GroupPage() {
     }
   }, [code, user?.id]);
 
-  // Fetch locations
-  const fetchLocations = useCallback(async () => {
+  // Fetch locations - but DON'T auto-call, only fetch existing or when admin clicks
+  const fetchLocations = useCallback(async (generateNew: boolean = false) => {
     if (!group?.id) return;
 
     try {
       setIsLoadingLocations(true);
-      const response = await fetch(`/api/locations?groupId=${group.id}`);
+      // If generateNew is true, we append a cache-busting param to force generation
+      const url = generateNew 
+        ? `/api/locations?groupId=${group.id}&generate=true`
+        : `/api/locations?groupId=${group.id}`;
+      const response = await fetch(url);
       const data = await response.json();
 
       if (data.success) {
@@ -184,10 +190,11 @@ export default function GroupPage() {
     }
   }, [isUserLoaded, user, code, router, fetchGroup]);
 
-  // Fetch locations when group is loaded and has members
+  // Fetch existing (cached) locations when group is loaded and has members
+  // Don't auto-generate - only fetch what already exists
   useEffect(() => {
     if (group && group.Member && group.Member.length >= 2 && isMember) {
-      fetchLocations();
+      fetchLocations(false); // false = don't generate new, just fetch existing
       fetchVotes();
     }
   }, [group, isMember, fetchLocations, fetchVotes]);
@@ -229,6 +236,22 @@ export default function GroupPage() {
       socket.off('group-updated');
     };
   }, [socket, code]);
+
+  // Supabase real-time subscription for live member updates
+  useEffect(() => {
+    if (!group?.id) return;
+
+    // Subscribe to real-time updates for this group
+    subscribeToGroup(group.id, (payload: unknown) => {
+      console.log('Supabase real-time update:', payload);
+      // Refetch group data when any member change happens
+      fetchGroup();
+    });
+
+    return () => {
+      unsubscribeFromGroup(group.id);
+    };
+  }, [group?.id, subscribeToGroup, unsubscribeFromGroup, fetchGroup]);
 
   // Pre-fill user name
   useEffect(() => {
@@ -322,7 +345,8 @@ export default function GroupPage() {
   };
 
   const handleGenerateLocations = async () => {
-    await fetchLocations();
+    // Generate new itineraries (true = generate new, don't just fetch cached)
+    await fetchLocations(true);
   };
 
   const copyShareLink = async () => {

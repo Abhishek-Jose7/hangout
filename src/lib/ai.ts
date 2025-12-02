@@ -181,7 +181,7 @@ async function createItinerariesWithRealPlaces(
             if (itinerary) itineraries.push(itinerary);
         }
 
-        return itineraries.slice(0, 3); // Return top 3 itineraries
+        return itineraries.slice(0, 4); // Return top 3-4 itineraries
     } catch (error) {
         console.error('Error creating itineraries:', error);
         return [];
@@ -274,7 +274,7 @@ async function fallbackToAIOnly(
     const allMoodTags = members.flatMap(member => member.moodTags ?? []);
     const averageBudget = budgets.reduce((a, b) => a + b, 0) / budgets.length;
 
-    const prompt = `Create 2-3 location suggestions for a ${isDatePlanner ? `date (${dateType})` : 'group hangout'} for people from ${locations.join(', ')}.
+    const prompt = `Create 3-4 location suggestions for a ${isDatePlanner ? `date (${dateType})` : 'group hangout'} for people from ${locations.join(', ')}.
 
 Budget: ₹${averageBudget}
 Interests: ${allMoodTags.join(', ')}
@@ -289,7 +289,9 @@ Return ONLY valid JSON with real, highly-rated places in India:
       "estimatedCost": ${Math.floor(averageBudget * 0.8)}
     }
   ]
-}`;
+}
+
+IMPORTANT: Generate exactly 3-4 different itinerary options for users to vote on.`;
 
     try {
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });

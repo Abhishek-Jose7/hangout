@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url);
     const groupId = url.searchParams.get('groupId');
+    const shouldGenerate = url.searchParams.get('generate') === 'true';
 
     if (!groupId) {
       return NextResponse.json(
@@ -45,8 +46,8 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching existing itineraries:', itineraryError);
     }
 
-    // If itineraries exist, return them
-    if (existingItineraries && existingItineraries.length > 0) {
+    // If itineraries exist and we're not forcing generation, return them
+    if (existingItineraries && existingItineraries.length > 0 && !shouldGenerate) {
       console.log('Returning cached itineraries for group:', groupId, 'created at:', existingItineraries[0].created_at);
       return NextResponse.json({
         success: true,
@@ -56,7 +57,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    console.log('No cached itineraries found, generating new ones for group:', groupId);
+    // If not generating new ones (admin didn't click), just return empty
+    if (!shouldGenerate && (!existingItineraries || existingItineraries.length === 0)) {
+      console.log('No cached itineraries and generation not requested for group:', groupId);
+      return NextResponse.json({
+        success: true,
+        locations: [],
+        cached: false,
+        message: 'No itineraries generated yet. Admin needs to generate them.'
+      });
+    }
+
+    console.log('Generating new itineraries for group:', groupId);
 
     // Get all members of the group from Supabase
     const { data: members, error } = await supabase

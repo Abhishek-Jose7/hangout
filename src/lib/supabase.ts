@@ -44,7 +44,16 @@ export const subscribeToGroupUpdates = (groupId: string, callback: (payload: unk
         event: '*',
         schema: 'public',
         table: 'Member',
-        filter: `group_id=eq.${groupId}`
+        filter: `groupId=eq.${groupId}`
+      },
+      callback
+    )
+    .on('postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'Itineraries',
+        filter: `groupId=eq.${groupId}`
       },
       callback
     )
