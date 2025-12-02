@@ -11,8 +11,11 @@
   "dependencies": {
     "@clerk/nextjs": "^6.35.5",
     "@google/generative-ai": "^0.24.1",
+    "@googlemaps/google-maps-services-js": "^3.4.2",
     "@supabase/supabase-js": "^2.74.0",
     "@types/google.maps": "^3.58.1",
+    "axios": "^1.13.2",
+    "cheerio": "^1.1.2",
     "firebase": "^12.1.0",
     "firebase-admin": "^11.11.0",
     "groq-sdk": "^0.34.0",
@@ -24,6 +27,7 @@
     "react-leaflet": "^5.0.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
+    "user-agent-array": "^2.0.1",
     "whatwg-url": "^15.1.0"
   },
   "devDependencies": {

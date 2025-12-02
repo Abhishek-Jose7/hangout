@@ -54,7 +54,7 @@ export default function DuoDatePage() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
-  const [selectedItinerary, setSelectedItinerary] = useState<number | null>(null);
+
   const [isSharing, setIsSharing] = useState<boolean>(false);
 
   const dateTypes = [
@@ -70,7 +70,7 @@ export default function DuoDatePage() {
   ];
 
   const moodOptions = [
-    'Adventure', 'Relaxation', 'Culture', 'Food', 'Nature', 'Shopping', 'Nightlife', 'Music', 'Art', 'Sports', 'Photography', 'Learning'
+    'Cafe Hopping', 'Street Food', 'Fine Dining', 'Bowling/Arcade', 'Movie Night', 'Nature Walk', 'Shopping Spree', 'Clubbing/Bar', 'Museum/History', 'Adventure Sports', 'Spa/Relaxation', 'Workshop/Class'
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -85,7 +85,7 @@ export default function DuoDatePage() {
       setIsLoading(true);
       setError('');
       setItineraries([]);
-      setSelectedItinerary(null);
+
 
       const response = await fetch('/api/duo-date', {
         method: 'POST',
@@ -123,9 +123,7 @@ export default function DuoDatePage() {
     }
   };
 
-  const handleItinerarySelect = (index: number) => {
-    setSelectedItinerary(selectedItinerary === index ? null : index);
-  };
+
 
   const handleShare = async () => {
     if (!itineraries.length) return;
@@ -228,8 +226,8 @@ export default function DuoDatePage() {
                           type="button"
                           onClick={() => setDateType(type.value)}
                           className={`p-3 rounded-xl border text-left transition-all duration-200 flex items-center group ${dateType === type.value
-                              ? 'bg-pink-50 border-pink-200 shadow-sm ring-1 ring-pink-200'
-                              : 'bg-white border-slate-200 hover:border-pink-200 hover:bg-slate-50'
+                            ? 'bg-pink-50 border-pink-200 shadow-sm ring-1 ring-pink-200'
+                            : 'bg-white border-slate-200 hover:border-pink-200 hover:bg-slate-50'
                             }`}
                         >
                           <span className="text-2xl mr-3 group-hover:scale-110 transition-transform">{type.icon}</span>
@@ -307,8 +305,8 @@ export default function DuoDatePage() {
                           }}
                           disabled={isLoading}
                           className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 ${moodTags.includes(tag)
-                              ? 'bg-pink-600 text-white border-pink-600 shadow-sm'
-                              : 'bg-white text-slate-600 border-slate-200 hover:border-pink-300 hover:bg-pink-50'
+                            ? 'bg-pink-600 text-white border-pink-600 shadow-sm'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-pink-300 hover:bg-pink-50'
                             }`}
                         >
                           {tag}

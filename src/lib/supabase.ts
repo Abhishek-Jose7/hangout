@@ -51,6 +51,14 @@ export const subscribeToGroupUpdates = (groupId: string, callback: (payload: unk
     .subscribe();
 }
 
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
 // Database types for Supabase
 export type Database = {
   public: {
@@ -60,63 +68,57 @@ export type Database = {
           id: string
           code: string
           created_at: string
-          updated_at: string
+          creator_firebase_uid: string
         }
         Insert: {
           id?: string
           code: string
           created_at?: string
-          updated_at?: string
+          creator_firebase_uid: string
         }
         Update: {
           id?: string
           code?: string
           created_at?: string
-          updated_at?: string
+          creator_firebase_uid?: string
         }
-      }
+      },
       Member: {
         Row: {
           id: string
+          groupId: string
+          clerkUserId: string
           name: string
           location: string
           budget: number
           moodTags: string
-          clerkUserId: string | null
-          email: string | null
-          groupId: string
           is_admin: boolean
           created_at: string
-          updated_at: string
         }
         Insert: {
           id?: string
+          groupId: string
+          clerkUserId: string
           name: string
           location: string
           budget: number
           moodTags: string
-          clerkUserId?: string | null
-          email?: string | null
-          groupId: string
           is_admin?: boolean
           created_at?: string
-          updated_at?: string
         }
         Update: {
           id?: string
+          groupId?: string
+          clerkUserId?: string
           name?: string
           location?: string
           budget?: number
           moodTags?: string
-          clerkUserId?: string | null
-          email?: string | null
-          groupId?: string
           is_admin?: boolean
           created_at?: string
-          updated_at?: string
         }
-      }
-      ItineraryVote: {
+      },
+      ItineraryVotes: {
         Row: {
           id: string
           group_id: string
@@ -146,7 +148,7 @@ export type Database = {
         Row: {
           id: string
           group_id: string
-          locations: any
+          locations: Json
           created_by: string | null
           created_at: string
           updated_at: string
@@ -154,7 +156,7 @@ export type Database = {
         Insert: {
           id?: string
           group_id: string
-          locations: any
+          locations: Json
           created_by?: string | null
           created_at?: string
           updated_at?: string
@@ -162,7 +164,7 @@ export type Database = {
         Update: {
           id?: string
           group_id?: string
-          locations?: any
+          locations?: Json
           created_by?: string | null
           created_at?: string
           updated_at?: string

@@ -1,83 +1,72 @@
 export default function Features() {
-  const features = [
-    {
-      icon: '📍',
-      title: 'Smart Location Suggestions',
-      description: 'Finds the best meetup point based on everyone\'s location.'
-    },
-    {
-      icon: '💬',
-      title: 'Group Voting',
-      description: 'Vote and decide the perfect hangout place together.'
-    },
-    {
-      icon: '⚡',
-      title: 'Real-time Coordination',
-      description: 'Track who\'s joining, ETA, and final spot live.'
-    },
-    {
-      icon: '💰',
-      title: 'Budget Matching',
-      description: 'Suggests spots that fit everyone\'s budget.'
-    },
-    {
-      icon: '🎭',
-      title: 'Vibe Selector',
-      description: 'Choose from chill, romantic, or fun vibes for better matches.'
-    },
-    {
-      icon: '💕',
-      title: 'Duo Date Planner',
-      description: 'Special feature for planning perfect dates with your special someone.'
-    }
-  ];
+    const features = [
+        {
+            name: 'Smart Location Discovery',
+            description: 'We find the perfect meeting point based on everyone\'s location to ensure travel fairness.',
+            icon: (
+                <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+            ),
+        },
+        {
+            name: 'Budget Friendly',
+            description: 'Set individual budgets and we\'ll find places that everyone can afford without awkward conversations.',
+            icon: (
+                <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                </svg>
+            ),
+        },
+        {
+            name: 'Mood Based',
+            description: 'Whether you want chill vibes, adventure, or food hopping, we curate the perfect itinerary.',
+            icon: (
+                <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            ),
+        },
+        {
+            name: 'Real-time Voting',
+            description: 'Vote on suggested itineraries in real-time and come to a decision instantly.',
+            icon: (
+                <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            ),
+        },
+    ];
 
-  return (
-    <section id="features" className="py-24 px-4 sm:px-6 lg:px-8 bg-white relative overflow-hidden">
-      {/* Background decoration */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
-        <div className="absolute top-0 right-0 w-1/3 h-1/3 bg-indigo-50/50 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
-        <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-blue-50/50 rounded-full blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
-      </div>
-
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-20">
-          <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-6">
-            Everything you need for perfect meetups
-          </h2>
-          <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-            From smart suggestions to seamless coordination, we&apos;ve got you covered.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {features.map((feature, index) => (
-            <div
-              key={index}
-              className={`group bg-white border border-slate-100 rounded-2xl p-8 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 hover:-translate-y-1 animate-fade-in-up ${index === 0 ? 'delay-100' :
-                index === 1 ? 'delay-200' :
-                  index === 2 ? 'delay-300' :
-                    index === 3 ? 'delay-100' :
-                      'delay-200'
-                }`}
-            >
-              <div className="flex flex-col h-full">
-                <div className="w-14 h-14 flex items-center justify-center bg-indigo-50 rounded-2xl text-3xl mb-6 group-hover:scale-110 transition-transform duration-300">
-                  {feature.icon}
+    return (
+        <div className="bg-white py-24 sm:py-32">
+            <div className="mx-auto max-w-7xl px-6 lg:px-8">
+                <div className="mx-auto max-w-2xl lg:text-center">
+                    <h2 className="text-base font-semibold leading-7 text-indigo-600">Faster Decisions</h2>
+                    <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                        Everything you need to plan the perfect hangout
+                    </p>
+                    <p className="mt-6 text-lg leading-8 text-gray-600">
+                        No more &quot;I don&apos;t know, where do you want to go?&quot; loops. Get straight to the fun part.
+                    </p>
                 </div>
-
-                <h3 className="text-xl font-bold text-slate-900 mb-3 group-hover:text-indigo-600 transition-colors">
-                  {feature.title}
-                </h3>
-
-                <p className="text-slate-600 leading-relaxed">
-                  {feature.description}
-                </p>
-              </div>
+                <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-4xl">
+                    <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-10 lg:max-w-none lg:grid-cols-2 lg:gap-y-16">
+                        {features.map((feature) => (
+                            <div key={feature.name} className="relative pl-16">
+                                <dt className="text-base font-semibold leading-7 text-gray-900">
+                                    <div className="absolute left-0 top-0 flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600">
+                                        {feature.icon}
+                                    </div>
+                                    {feature.name}
+                                </dt>
+                                <dd className="mt-2 text-base leading-7 text-gray-600">{feature.description}</dd>
+                            </div>
+                        ))}
+                    </dl>
+                </div>
             </div>
-          ))}
         </div>
-      </div>
-    </section>
-  );
+    );
 }
