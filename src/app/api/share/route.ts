@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabase';
 import { randomUUID } from 'crypto';
-import type { InvitationRequest, InvitationMethod } from '@/types/features';
+import type { InvitationRequest } from '@/types/features';
 
 // GET: Fetch invitations for a group
 export async function GET(request: NextRequest) {

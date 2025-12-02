@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 
 interface FriendsManagerProps {
   onInviteFriend?: (friendId: string) => void;
@@ -252,9 +253,11 @@ export default function FriendsManager({ onInviteFriend }: FriendsManagerProps) 
                   >
                     <div className="flex items-center gap-3">
                       {friend.avatarUrl ? (
-                        <img 
+                        <Image 
                           src={friend.avatarUrl} 
                           alt={friend.name}
+                          width={40}
+                          height={40}
                           className="w-10 h-10 rounded-full object-cover"
                         />
                       ) : (

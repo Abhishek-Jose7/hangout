@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabase';
 import { randomUUID } from 'crypto';
-import type { HangoutReviewRequest } from '@/types/features';
+// Types defined inline
 
 // GET: Fetch reviews for a hangout
 export async function GET(request: NextRequest) {
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
       .eq('id', hangoutId)
       .single() : { data: null };
 
-    const groupId = hangout?.groupId;
+    const _groupId = hangout?.groupId; // eslint-disable-line @typescript-eslint/no-unused-vars
 
     const { data: currentMember, error: memberError } = await supabase
       .from('Member')

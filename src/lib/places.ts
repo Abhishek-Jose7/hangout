@@ -131,11 +131,10 @@ async function getSearchLinks(query: string): Promise<string[]> {
 async function scrapeAndExtractPlaces(url: string, mood: string, location: string): Promise<Place[]> {
     try {
         console.log(`Scraping ${url} for ${mood} places in ${location}...`);
-        const userAgent = new UserAgent();
 
         const response = await axios.get(url, {
             headers: {
-                'User-Agent': userAgent.toString(),
+                'User-Agent': getRandomUserAgent(),
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             },
             timeout: 10000

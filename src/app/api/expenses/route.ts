@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabase';
 import { randomUUID } from 'crypto';
-import type { CreateExpenseRequest, ExpenseCategory, SplitType } from '@/types/features';
+import type { CreateExpenseRequest } from '@/types/features';
 
 // GET: Fetch expenses for a group with balances
 export async function GET(request: NextRequest) {

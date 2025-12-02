@@ -28,7 +28,7 @@ interface TimeSlotSummary {
   voters: { name: string; availability: string }[];
 }
 
-export default function TimeSlotVoting({ groupId, currentMemberId }: TimeSlotVotingProps) {
+export default function TimeSlotVoting({ groupId }: TimeSlotVotingProps) {
   const [timeSlots, setTimeSlots] = useState<TimeSlotSummary[]>([]);
   const [bestSlot, setBestSlot] = useState<TimeSlotSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);

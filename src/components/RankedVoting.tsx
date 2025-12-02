@@ -17,7 +17,7 @@ interface VoteResult {
   thirdChoiceVotes: number;
 }
 
-export default function RankedVoting({ groupId, locations = [], currentMemberId }: RankedVotingProps) {
+export default function RankedVoting({ groupId, locations = [] }: RankedVotingProps) {
   const [results, setResults] = useState<VoteResult[]>([]);
   const [userVotes, setUserVotes] = useState<{ itineraryIdx: number; rank: number }[]>([]);
   const [isLoading, setIsLoading] = useState(true);

@@ -47,7 +47,7 @@ const CATEGORIES = [
   { value: 'other', label: '📦 Other', color: 'bg-slate-100 text-slate-700' },
 ];
 
-export default function ExpenseTracker({ groupId, members, currentMemberId }: ExpenseTrackerProps) {
+export default function ExpenseTracker({ groupId }: ExpenseTrackerProps) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [memberBalances, setMemberBalances] = useState<MemberBalance[]>([]);
   const [simplifiedDebts, setSimplifiedDebts] = useState<SimplifiedDebt[]>([]);
