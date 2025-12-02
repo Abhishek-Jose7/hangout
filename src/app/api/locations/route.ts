@@ -80,12 +80,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Format members for the Gemini API
-    const formattedMembers = members.map((member: { name: string; location: string; budget: number; mood_tags: string; preferred_date: string | null }) => ({
+    const formattedMembers = members.map((member: { name: string; location: string; budget: number; moodTags: string; preferred_date: string | null }) => ({
       name: member.name,
       location: member.location,
       budget: member.budget,
-      moodTags: member.mood_tags && member.mood_tags.length > 0
-        ? member.mood_tags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
+      moodTags: member.moodTags && member.moodTags.length > 0
+        ? member.moodTags.split(',').map((tag: string) => tag.trim()).filter(Boolean)
         : [],
       preferredDate: member.preferred_date || null
     }));

@@ -91,7 +91,7 @@ export type Database = {
           name: string
           location: string
           budget: number
-          mood_tags: string
+          moodTags: string
           is_admin: boolean
           created_at: string
           preferred_date: string | null
@@ -103,7 +103,7 @@ export type Database = {
           name: string
           location: string
           budget: number
-          mood_tags: string
+          moodTags: string
           is_admin?: boolean
           created_at?: string
           preferred_date?: string | null
@@ -115,7 +115,7 @@ export type Database = {
           name?: string
           location?: string
           budget?: number
-          mood_tags?: string
+          moodTags?: string
           is_admin?: boolean
           created_at?: string
           preferred_date?: string | null

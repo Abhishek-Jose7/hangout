@@ -9,13 +9,18 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import LiveMap from '@/components/LiveMap';
 import { useSocket } from '@/hooks/useSocket';
+import ExpenseTracker from '@/components/ExpenseTracker';
+import TimeSlotVoting from '@/components/TimeSlotVoting';
+import RankedVoting from '@/components/RankedVoting';
+import TravelTimeDisplay from '@/components/TravelTimeDisplay';
+import BudgetDashboard from '@/components/BudgetDashboard';
 
 interface Member {
   id: string;
   name: string;
   location: string;
   budget: number;
-  mood_tags: string;
+  moodTags: string;
   clerkUserId: string;
   is_admin?: boolean;
 }
@@ -77,12 +82,16 @@ export default function GroupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMember, setIsMember] = useState(false);
   const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Locations state
   const [locations, setLocations] = useState<Location[]>([]);
   const [isLoadingLocations, setIsLoadingLocations] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<number | null>(null);
   const [voteCounts, setVoteCounts] = useState<Record<number, number>>({});
+  
+  // Feature tabs state
+  const [activeFeatureTab, setActiveFeatureTab] = useState<'locations' | 'schedule' | 'expenses' | 'travel' | 'budget'>('locations');
   const [userVote, setUserVote] = useState<number | null>(null);
   const [isVoting, setIsVoting] = useState(false);
 
@@ -114,6 +123,9 @@ export default function GroupPage() {
         if (member) {
           setIsMember(true);
           setCurrentMemberId(member.id);
+          // Check if user is admin (first member or has is_admin flag)
+          const isFirstMember = data.group.Member.length > 0 && data.group.Member[0].clerkUserId === user.id;
+          setIsAdmin(member.is_admin === true || isFirstMember);
         }
       }
     } catch (err) {
@@ -451,16 +463,16 @@ export default function GroupPage() {
                           ₹{member.budget}
                         </span>
                       </div>
-                      {member.mood_tags && (
+                      {member.moodTags && (
                         <div className="mt-3 flex flex-wrap gap-1.5">
-                          {member.mood_tags.split(',').slice(0, 3).map((tag, i) => (
+                          {member.moodTags.split(',').slice(0, 3).map((tag, i) => (
                             <span key={i} className="text-xs bg-white text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
                               {tag.trim()}
                             </span>
                           ))}
-                          {member.mood_tags.split(',').length > 3 && (
+                          {member.moodTags.split(',').length > 3 && (
                             <span className="text-xs text-slate-400 px-2 py-1">
-                              +{member.mood_tags.split(',').length - 3} more
+                              +{member.moodTags.split(',').length - 3} more
                             </span>
                           )}
                         </div>
@@ -599,19 +611,37 @@ export default function GroupPage() {
 
                   <div className="p-6">
                     {(group?.Member?.length || 0) >= 2 && locations.length === 0 && (
-                      <Button
-                        onClick={handleGenerateLocations}
-                        variant="primary"
-                        fullWidth
-                        size="lg"
-                        loading={isLoadingLocations}
-                        className="mb-6"
-                      >
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                        </svg>
-                        Find Hangout Spots
-                      </Button>
+                      isAdmin ? (
+                        <Button
+                          onClick={handleGenerateLocations}
+                          variant="primary"
+                          fullWidth
+                          size="lg"
+                          loading={isLoadingLocations}
+                          className="mb-6"
+                        >
+                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                          </svg>
+                          Generate Itineraries
+                        </Button>
+                      ) : (
+                        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                              <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-amber-800">Waiting for itineraries</p>
+                              <p className="text-xs text-amber-600">
+                                {group?.Member?.[0]?.name || 'The admin'} will generate hangout options
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )
                     )}
 
                     <div>
@@ -858,6 +888,107 @@ export default function GroupPage() {
               )}
             </div>
           </div>
+
+          {/* Feature Tabs Section - Only show for members */}
+          {isMember && group?.id && (
+            <div className="mt-8">
+              {/* Feature Tab Navigation */}
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-100 mb-6 overflow-hidden">
+                <div className="flex overflow-x-auto">
+                  {[
+                    { id: 'locations' as const, label: 'Locations', icon: '📍' },
+                    { id: 'schedule' as const, label: 'Schedule', icon: '📅' },
+                    { id: 'expenses' as const, label: 'Expenses', icon: '💰' },
+                    { id: 'travel' as const, label: 'Travel', icon: '🚗' },
+                    { id: 'budget' as const, label: 'Budget', icon: '📊' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveFeatureTab(tab.id)}
+                      className={`flex-1 min-w-[120px] px-4 py-4 text-sm font-medium transition-colors whitespace-nowrap ${
+                        activeFeatureTab === tab.id
+                          ? 'bg-indigo-50 text-indigo-700 border-b-2 border-indigo-500'
+                          : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="mr-2">{tab.icon}</span>
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Feature Content */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {activeFeatureTab === 'schedule' && (
+                  <>
+                    <TimeSlotVoting groupId={group.id} currentMemberId={currentMemberId} />
+                    <RankedVoting
+                      groupId={group.id}
+                      locations={locations.map((loc) => ({
+                        name: loc.name,
+                        estimatedCost: loc.estimatedCost,
+                      }))}
+                      currentMemberId={currentMemberId}
+                    />
+                  </>
+                )}
+
+                {activeFeatureTab === 'expenses' && (
+                  <div className="lg:col-span-2">
+                    <ExpenseTracker
+                      groupId={group.id}
+                      members={group.Member.map(m => ({
+                        id: m.id,
+                        name: m.name,
+                      }))}
+                      currentMemberId={currentMemberId}
+                    />
+                  </div>
+                )}
+
+                {activeFeatureTab === 'travel' && (
+                  <>
+                    {locations[selectedLocation ?? 0]?.itineraryDetails?.[0]?.coordinates ? (
+                      <TravelTimeDisplay
+                        groupId={group.id}
+                        destination={{
+                          name: locations[selectedLocation ?? 0].itineraryDetails![0].name,
+                          lat: locations[selectedLocation ?? 0].itineraryDetails![0].coordinates!.lat,
+                          lng: locations[selectedLocation ?? 0].itineraryDetails![0].coordinates!.lng,
+                        }}
+                      />
+                    ) : (
+                      <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
+                        <p className="text-slate-500">Select a location to see travel times</p>
+                      </div>
+                    )}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                      <h3 className="font-bold text-lg text-slate-900 mb-4">Transportation Tips</h3>
+                      <div className="space-y-3 text-sm text-slate-600">
+                        <p>🚗 <strong>By Car:</strong> Check traffic conditions before leaving</p>
+                        <p>🚌 <strong>By Transit:</strong> Plan your route using Google Maps or local transit apps</p>
+                        <p>🚶 <strong>Walking:</strong> Great for exploring the area!</p>
+                        <p>🚕 <strong>Rideshare:</strong> Consider splitting the cost with group members</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {activeFeatureTab === 'budget' && (
+                  <div className="lg:col-span-2">
+                    <BudgetDashboard groupId={group.id} />
+                  </div>
+                )}
+
+                {activeFeatureTab === 'locations' && (
+                  <div className="lg:col-span-2 text-center py-8 text-slate-500">
+                    <p>View locations in the main section above</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

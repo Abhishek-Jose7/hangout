@@ -4,6 +4,7 @@
 -- Purpose: Add tables for expense splitting, ranked voting, reviews, 
 --          time slots, friends, and history tracking
 -- Date: 2025-12-02
+-- Note: Uses TEXT for Group.id to match existing schema
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -13,8 +14,8 @@
 -- Expense table - tracks individual expenses during a hangout
 CREATE TABLE IF NOT EXISTS "Expense" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  "groupId" UUID NOT NULL REFERENCES "Group"("id") ON DELETE CASCADE,
-  "paidById" UUID NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
+  "groupId" TEXT NOT NULL REFERENCES "Group"("id") ON DELETE CASCADE,
+  "paidById" TEXT NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
   "description" TEXT NOT NULL,
   "amount" DECIMAL(10, 2) NOT NULL CHECK ("amount" > 0),
   "category" TEXT DEFAULT 'other' CHECK ("category" IN ('food', 'transport', 'entertainment', 'accommodation', 'shopping', 'other')),
@@ -28,7 +29,7 @@ CREATE TABLE IF NOT EXISTS "Expense" (
 CREATE TABLE IF NOT EXISTS "ExpenseSplit" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "expenseId" UUID NOT NULL REFERENCES "Expense"("id") ON DELETE CASCADE,
-  "memberId" UUID NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
+  "memberId" TEXT NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
   "amount" DECIMAL(10, 2) NOT NULL CHECK ("amount" >= 0),
   "percentage" DECIMAL(5, 2) DEFAULT 0 CHECK ("percentage" >= 0 AND "percentage" <= 100),
   "isPaid" BOOLEAN DEFAULT FALSE,
@@ -39,9 +40,9 @@ CREATE TABLE IF NOT EXISTS "ExpenseSplit" (
 -- Settlement table - tracks payments between members
 CREATE TABLE IF NOT EXISTS "Settlement" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  "groupId" UUID NOT NULL REFERENCES "Group"("id") ON DELETE CASCADE,
-  "fromMemberId" UUID NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
-  "toMemberId" UUID NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
+  "groupId" TEXT NOT NULL REFERENCES "Group"("id") ON DELETE CASCADE,
+  "fromMemberId" TEXT NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
+  "toMemberId" TEXT NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
   "amount" DECIMAL(10, 2) NOT NULL CHECK ("amount" > 0),
   "status" TEXT DEFAULT 'pending' CHECK ("status" IN ('pending', 'completed', 'cancelled')),
   "notes" TEXT,
@@ -53,11 +54,22 @@ CREATE TABLE IF NOT EXISTS "Settlement" (
 -- 2. RANKED CHOICE VOTING TABLES
 -- ----------------------------------------------------------------------------
 
+-- Itineraries table - stores generated itineraries for a group
+CREATE TABLE IF NOT EXISTS "Itineraries" (
+  "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  "groupId" TEXT NOT NULL REFERENCES "Group"("id") ON DELETE CASCADE,
+  "itineraryIdx" INTEGER NOT NULL,
+  "data" JSONB NOT NULL,
+  "created_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE("groupId", "itineraryIdx")
+);
+
 -- RankedVote table - stores ranked votes for itineraries
 CREATE TABLE IF NOT EXISTS "RankedVote" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  "groupId" UUID NOT NULL REFERENCES "Group"("id") ON DELETE CASCADE,
-  "memberId" UUID NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
+  "groupId" TEXT NOT NULL REFERENCES "Group"("id") ON DELETE CASCADE,
+  "memberId" TEXT NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
   "itineraryIdx" INTEGER NOT NULL,
   "rank" INTEGER NOT NULL CHECK ("rank" >= 1 AND "rank" <= 5),
   "created_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -72,8 +84,8 @@ CREATE TABLE IF NOT EXISTS "RankedVote" (
 -- TimeSlot table - proposed time slots for a group
 CREATE TABLE IF NOT EXISTS "TimeSlot" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  "groupId" UUID NOT NULL REFERENCES "Group"("id") ON DELETE CASCADE,
-  "proposedById" UUID NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
+  "groupId" TEXT NOT NULL REFERENCES "Group"("id") ON DELETE CASCADE,
+  "proposedById" TEXT NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
   "startTime" TIMESTAMP WITH TIME ZONE NOT NULL,
   "endTime" TIMESTAMP WITH TIME ZONE NOT NULL,
   "title" TEXT,
@@ -86,7 +98,7 @@ CREATE TABLE IF NOT EXISTS "TimeSlot" (
 CREATE TABLE IF NOT EXISTS "TimeSlotVote" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "timeSlotId" UUID NOT NULL REFERENCES "TimeSlot"("id") ON DELETE CASCADE,
-  "memberId" UUID NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
+  "memberId" TEXT NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
   "availability" TEXT NOT NULL CHECK ("availability" IN ('yes', 'maybe', 'no')),
   "created_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -100,7 +112,7 @@ CREATE TABLE IF NOT EXISTS "TimeSlotVote" (
 -- Hangout table - completed hangouts
 CREATE TABLE IF NOT EXISTS "Hangout" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  "groupId" UUID NOT NULL REFERENCES "Group"("id") ON DELETE CASCADE,
+  "groupId" TEXT NOT NULL REFERENCES "Group"("id") ON DELETE CASCADE,
   "title" TEXT NOT NULL,
   "description" TEXT,
   "selectedItineraryIdx" INTEGER,
@@ -117,7 +129,7 @@ CREATE TABLE IF NOT EXISTS "Hangout" (
 CREATE TABLE IF NOT EXISTS "HangoutReview" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "hangoutId" UUID NOT NULL REFERENCES "Hangout"("id") ON DELETE CASCADE,
-  "memberId" UUID NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
+  "memberId" TEXT NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
   "rating" INTEGER NOT NULL CHECK ("rating" >= 1 AND "rating" <= 5),
   "feedback" TEXT,
   "wouldRepeat" BOOLEAN DEFAULT TRUE,
@@ -131,7 +143,7 @@ CREATE TABLE IF NOT EXISTS "HangoutReview" (
 CREATE TABLE IF NOT EXISTS "PlaceReview" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "hangoutId" UUID NOT NULL REFERENCES "Hangout"("id") ON DELETE CASCADE,
-  "memberId" UUID NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
+  "memberId" TEXT NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
   "placeId" TEXT NOT NULL,
   "placeName" TEXT NOT NULL,
   "rating" INTEGER NOT NULL CHECK ("rating" >= 1 AND "rating" <= 5),
@@ -159,8 +171,8 @@ CREATE TABLE IF NOT EXISTS "Friend" (
 -- Invitation table - group invitations
 CREATE TABLE IF NOT EXISTS "Invitation" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  "groupId" UUID NOT NULL REFERENCES "Group"("id") ON DELETE CASCADE,
-  "invitedById" UUID NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
+  "groupId" TEXT NOT NULL REFERENCES "Group"("id") ON DELETE CASCADE,
+  "invitedById" TEXT NOT NULL REFERENCES "Member"("id") ON DELETE CASCADE,
   "invitedEmail" TEXT,
   "invitedPhone" TEXT,
   "invitedUserId" TEXT,
@@ -187,6 +199,15 @@ ALTER TABLE "Group" ADD COLUMN IF NOT EXISTS "actualSpent" DECIMAL(10, 2) DEFAUL
 ALTER TABLE "Group" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
 -- ----------------------------------------------------------------------------
+-- 6B. EXTEND MEMBER TABLE
+-- ----------------------------------------------------------------------------
+
+-- Add preferred_date column if it doesn't exist
+-- Note: moodTags column already exists in the original schema
+ALTER TABLE "Member" ADD COLUMN IF NOT EXISTS "preferred_date" DATE;
+ALTER TABLE "Member" ADD COLUMN IF NOT EXISTS "email" TEXT;
+
+-- ----------------------------------------------------------------------------
 -- 7. INDEXES FOR PERFORMANCE
 -- ----------------------------------------------------------------------------
 
@@ -195,6 +216,7 @@ CREATE INDEX IF NOT EXISTS "idx_expense_paid_by" ON "Expense"("paidById");
 CREATE INDEX IF NOT EXISTS "idx_expense_split_expense" ON "ExpenseSplit"("expenseId");
 CREATE INDEX IF NOT EXISTS "idx_expense_split_member" ON "ExpenseSplit"("memberId");
 CREATE INDEX IF NOT EXISTS "idx_settlement_group" ON "Settlement"("groupId");
+CREATE INDEX IF NOT EXISTS "idx_itineraries_group" ON "Itineraries"("groupId");
 CREATE INDEX IF NOT EXISTS "idx_ranked_vote_group" ON "RankedVote"("groupId");
 CREATE INDEX IF NOT EXISTS "idx_time_slot_group" ON "TimeSlot"("groupId");
 CREATE INDEX IF NOT EXISTS "idx_time_slot_vote_slot" ON "TimeSlotVote"("timeSlotId");
@@ -212,6 +234,7 @@ CREATE INDEX IF NOT EXISTS "idx_invitation_group" ON "Invitation"("groupId");
 ALTER TABLE "Expense" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "ExpenseSplit" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Settlement" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Itineraries" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "RankedVote" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "TimeSlot" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "TimeSlotVote" ENABLE ROW LEVEL SECURITY;
@@ -225,6 +248,7 @@ ALTER TABLE "Invitation" ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage expenses" ON "Expense" FOR ALL USING (true);
 CREATE POLICY "Users can manage expense splits" ON "ExpenseSplit" FOR ALL USING (true);
 CREATE POLICY "Users can manage settlements" ON "Settlement" FOR ALL USING (true);
+CREATE POLICY "Users can manage itineraries" ON "Itineraries" FOR ALL USING (true);
 CREATE POLICY "Users can manage ranked votes" ON "RankedVote" FOR ALL USING (true);
 CREATE POLICY "Users can manage time slots" ON "TimeSlot" FOR ALL USING (true);
 CREATE POLICY "Users can manage time slot votes" ON "TimeSlotVote" FOR ALL USING (true);

@@ -1,7 +1,18 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import UserAgent from 'user-agent-array';
+
+// Random user agents for web scraping
+const userAgents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15'
+];
+
+function getRandomUserAgent(): string {
+    return userAgents[Math.floor(Math.random() * userAgents.length)];
+}
 
 // Initialize Gemini for parsing scraped content
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -91,11 +102,10 @@ async function getSearchLinks(query: string): Promise<string[]> {
     try {
         // Use DuckDuckGo HTML version (easier to scrape, less blocking)
         const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-        const userAgent = new UserAgent();
 
         const response = await axios.get(searchUrl, {
             headers: {
-                'User-Agent': userAgent.toString()
+                'User-Agent': getRandomUserAgent()
             }
         });
 

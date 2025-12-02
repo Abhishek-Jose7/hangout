@@ -7,6 +7,8 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Button from '@/components/ui/Button';
 import { useSocket } from '@/hooks/useSocket';
+import FriendsManager from '@/components/FriendsManager';
+import HangoutHistory from '@/components/HangoutHistory';
 
 interface Group {
   id: string;
@@ -39,6 +41,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string>('');
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [showGroupDetails, setShowGroupDetails] = useState(false);
+  const [dashboardTab, setDashboardTab] = useState<'groups' | 'friends' | 'history'>('groups');
 
   const { socket } = useSocket();
 
@@ -263,6 +266,30 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Dashboard Tab Navigation */}
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 mb-8 overflow-hidden">
+          <div className="flex">
+            {[
+              { id: 'groups' as const, label: 'My Groups', icon: '👥' },
+              { id: 'friends' as const, label: 'Friends', icon: '🤝' },
+              { id: 'history' as const, label: 'History', icon: '📜' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setDashboardTab(tab.id)}
+                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                  dashboardTab === tab.id
+                    ? 'bg-indigo-50 text-indigo-700 border-b-2 border-indigo-500'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <span className="mr-2">{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {error && (
           <div className="mb-8 bg-red-50 border border-red-200 rounded-2xl p-5 animate-fade-in shadow-sm">
             <div className="flex items-center">
@@ -276,6 +303,23 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Friends Tab */}
+        {dashboardTab === 'friends' && (
+          <div className="max-w-2xl mx-auto">
+            <FriendsManager />
+          </div>
+        )}
+
+        {/* History Tab */}
+        {dashboardTab === 'history' && (
+          <div className="max-w-3xl mx-auto">
+            <HangoutHistory userId={user?.id} showReviews={true} />
+          </div>
+        )}
+
+        {/* Groups Tab */}
+        {dashboardTab === 'groups' && (
+          <>
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20">
             <div className="w-16 h-16 rounded-2xl bg-indigo-100 flex items-center justify-center mb-4 animate-pulse">
@@ -617,6 +661,8 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
 

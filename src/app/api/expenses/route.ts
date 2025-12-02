@@ -262,7 +262,6 @@ export async function POST(request: NextRequest) {
     await supabase
       .from('Group')
       .update({ 
-        actualSpent: supabase.rpc ? amount : amount,
         updated_at: new Date().toISOString()
       })
       .eq('id', groupId);

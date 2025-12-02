@@ -294,7 +294,7 @@ export interface Member {
   name: string;
   location: string;
   budget: number;
-  mood_tags: string;
+  moodTags: string;
   clerkUserId: string;
   email?: string;
   is_admin?: boolean;
