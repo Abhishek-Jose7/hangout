@@ -5,11 +5,10 @@ const nextConfig: NextConfig = {
   // 🔹 Limit file tracing to THIS project (fixes EPERM scandir on C:\users\...)
   outputFileTracingRoot: path.join(__dirname),
 
+  // Add empty turbopack config to allow transition while keeping webpack config
+  turbopack: {},
+
   experimental: {
-    // This helps with RSC-related network errors
-    serverActions: {
-      bodySizeLimit: "2mb",
-    },
     // (Optional but often helps on Windows)
     workerThreads: false,
     cpus: 1,
