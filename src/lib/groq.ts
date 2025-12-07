@@ -1,8 +1,9 @@
 import Groq from 'groq-sdk';
 
 // Initialize Groq client
-const groq = new Groq({
+export const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
+  dangerouslyAllowBrowser: true // Enable if using client-side, though this seems to be server-side lib
 });
 
 export async function findOptimalLocations(members: { name: string; location: string; budget: number; moodTags: string[]; preferredDate: string | null }[], isDatePlanner: boolean = false, dateType: string = 'romantic') {
@@ -121,7 +122,7 @@ Remember: Be creative, be local, be personal. Think beyond the obvious and creat
           content: prompt
         }
       ],
-      model: "llama-3.1-8b-instant",
+      model: "llama-3.3-70b-versatile",
       temperature: 0.9, // Increased for more creativity
       max_tokens: 4000,
     });
@@ -327,7 +328,7 @@ Remember: Be creative, be local, be personal. Create experiences that feel tailo
           content: prompt
         }
       ],
-      model: "llama-3.1-8b-instant",
+      model: "llama-3.3-70b-versatile",
       temperature: 0.9, // Increased for more creativity
       max_tokens: 4000,
     });

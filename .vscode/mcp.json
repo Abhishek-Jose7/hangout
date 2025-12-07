@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "gemini": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["c:/hang2/mcp-gemini-server/index.js"],
+      "env": {
+        "GEMINI_API_KEY": "AIzaSyClPwcdzytyxvoR-x9HgcATYzFH7v5aPv0"
+      }
+    }
+  }
+}

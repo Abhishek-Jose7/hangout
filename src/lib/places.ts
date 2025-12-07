@@ -1,6 +1,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { groq } from './groq';
+// Initialize Groq instead of Gemini
 
 // Random user agents for web scraping
 const userAgents = [
@@ -14,8 +15,6 @@ function getRandomUserAgent(): string {
     return userAgents[Math.floor(Math.random() * userAgents.length)];
 }
 
-// Initialize Gemini for parsing scraped content
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export interface Place {
     name: string;
@@ -149,8 +148,6 @@ async function scrapeAndExtractPlaces(url: string, mood: string, location: strin
         $('header').remove();
         const textContent = $('body').text().replace(/\s+/g, ' ').substring(0, 15000); // Limit length
 
-        // Use Gemini to parse the unstructured text
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         const prompt = `
       I have scraped a webpage about "Best ${mood} places in ${location}".
       Extract a list of specific venues/places mentioned in this text.
@@ -173,13 +170,24 @@ async function scrapeAndExtractPlaces(url: string, mood: string, location: strin
       Limit to top 5 places found.
     `;
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        // Use Groq to parse the unstructured text
+        const completion = await groq.chat.completions.create({
+            messages: [
+                {
+                    role: "user",
+                    content: prompt
+                }
+            ],
+            model: "llama-3.3-70b-versatile",
+            temperature: 0.3, // Lower temperature for extraction
+        });
+
+        const text = completion.choices[0]?.message?.content || '';
 
         // Extract JSON
         let jsonText = text.trim();
         if (jsonText.startsWith('```')) {
-            jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+            jsonText = jsonText.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
         }
 
         const places: ScrapedPlace[] = JSON.parse(jsonText);
@@ -241,8 +249,7 @@ export async function searchPlacesByMood(
 
         // If scraping failed, fallback to Gemini generation (simulated scraping)
         if (allPlaces.length === 0) {
-            console.log('Scraping yielded no results, using Gemini knowledge base...');
-            const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+            console.log('Scraping yielded no results, using Groq knowledge base...');
             const prompt = `
         List 5 real, highly-rated ${moodTags.join(' and ')} places in ${location}.
         Return ONLY valid JSON:
@@ -257,11 +264,21 @@ export async function searchPlacesByMood(
           }
         ]
       `;
-            const result = await model.generateContent(prompt);
-            const text = result.response.text();
+            const completion = await groq.chat.completions.create({
+                messages: [
+                    {
+                        role: "user",
+                        content: prompt
+                    }
+                ],
+                model: "llama-3.3-70b-versatile",
+                temperature: 0.7,
+            });
+
+            const text = completion.choices[0]?.message?.content || '';
             let jsonText = text.trim();
             if (jsonText.startsWith('```')) {
-                jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+                jsonText = jsonText.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
             }
             const aiPlaces: ScrapedPlace[] = JSON.parse(jsonText);
             return aiPlaces.map((p) => ({

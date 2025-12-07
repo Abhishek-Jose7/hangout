@@ -1,8 +1,8 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { groq } from './groq';
 import { searchPlacesByMood, findOptimalMeetingPoint, categorizePlaces, type Place, type ScrapedPlace } from './places';
 
-// Initialize Gemini client
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+// Gemini client removed in favor of Groq
+
 
 interface Itinerary {
     name: string;
@@ -229,14 +229,24 @@ Return ONLY valid JSON (no markdown) in this format:
   ]
 }`;
 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        const completion = await groq.chat.completions.create({
+            messages: [
+                {
+                    role: "user",
+                    content: prompt
+                }
+            ],
+            model: "llama-3.3-70b-versatile",
+            temperature: 0.7,
+            max_tokens: 4000,
+        });
+
+        const text = completion.choices[0]?.message?.content || '';
 
         // Parse response
         let jsonText = text.trim();
         if (jsonText.startsWith('```')) {
-            jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+            jsonText = jsonText.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
         }
 
         const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
@@ -294,13 +304,23 @@ Return ONLY valid JSON with real, highly-rated places in India:
 IMPORTANT: Generate exactly 3-4 different itinerary options for users to vote on.`;
 
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        const completion = await groq.chat.completions.create({
+            messages: [
+                {
+                    role: "user",
+                    content: prompt
+                }
+            ],
+            model: "llama-3.3-70b-versatile",
+            temperature: 0.9,
+            max_tokens: 4000,
+        });
+
+        const text = completion.choices[0]?.message?.content || '';
 
         let jsonText = text.trim();
         if (jsonText.startsWith('```')) {
-            jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+            jsonText = jsonText.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
         }
 
         const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
