@@ -5,12 +5,13 @@ import Button from '@/components/ui/Button';
 
 interface RankedVotingProps {
   groupId: string;
-  locations?: { name: string; estimatedCost?: number }[];
+  locations?: { name: string; estimatedCost?: number; itemId?: string }[];
   currentMemberId?: string | null;
 }
 
 interface VoteResult {
-  itineraryIdx: number;
+  itemId?: string;
+  itineraryIdx?: number;
   totalPoints: number;
   firstChoiceVotes: number;
   secondChoiceVotes: number;
@@ -19,12 +20,14 @@ interface VoteResult {
 
 export default function RankedVoting({ groupId, locations = [] }: RankedVotingProps) {
   const [results, setResults] = useState<VoteResult[]>([]);
-  const [userVotes, setUserVotes] = useState<{ itineraryIdx: number; rank: number }[]>([]);
+  // userVotes now stores itemId (or fallbacks)
+  const [userVotes, setUserVotes] = useState<{ itemId?: string; itineraryIdx?: number; rank: number }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [totalVoters, setTotalVoters] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
-  const [draftVotes, setDraftVotes] = useState<Record<number, number>>({});
+  // draftVotes keys now strings (itemId || index)
+  const [draftVotes, setDraftVotes] = useState<Record<string, number>>({});
 
   const fetchVotes = useCallback(async () => {
     try {
@@ -36,11 +39,13 @@ export default function RankedVoting({ groupId, locations = [] }: RankedVotingPr
         setResults(data.results || []);
         setUserVotes(data.userVotes || []);
         setTotalVoters(data.totalVoters || 0);
-        
+
         // Initialize draft votes from user votes
-        const votes: Record<number, number> = {};
-        data.userVotes?.forEach((v: { itineraryIdx: number; rank: number }) => {
-          votes[v.itineraryIdx] = v.rank;
+        const votes: Record<string, number> = {};
+        data.userVotes?.forEach((v: { itemId?: string; itineraryIdx?: number; rank: number }) => {
+          // Prefer itemId, fallback to index
+          const key = v.itemId || String(v.itineraryIdx);
+          votes[key] = v.rank;
         });
         setDraftVotes(votes);
       }
@@ -57,38 +62,45 @@ export default function RankedVoting({ groupId, locations = [] }: RankedVotingPr
     }
   }, [fetchVotes, locations.length]);
 
-  const handleRankChange = (itineraryIdx: number, rank: number) => {
+  const handleRankChange = (key: string, rank: number) => {
     setDraftVotes(prev => {
       const newVotes = { ...prev };
-      
+
       // Remove any existing vote with this rank
-      Object.keys(newVotes).forEach(key => {
-        if (newVotes[parseInt(key)] === rank) {
-          delete newVotes[parseInt(key)];
+      Object.keys(newVotes).forEach(k => {
+        if (newVotes[k] === rank) {
+          delete newVotes[k];
         }
       });
-      
+
       // Set new rank or remove if clicking same rank
-      if (prev[itineraryIdx] === rank) {
-        delete newVotes[itineraryIdx];
+      if (prev[key] === rank) {
+        delete newVotes[key];
       } else {
-        newVotes[itineraryIdx] = rank;
+        newVotes[key] = rank;
       }
-      
+
       return newVotes;
     });
   };
 
   const handleSubmitVotes = async () => {
-    const votes = Object.entries(draftVotes).map(([idx, rank]) => ({
-      itineraryIdx: parseInt(idx),
-      rank
-    }));
+    // Reconstruct votes payload
+    const votes = Object.entries(draftVotes).map(([key, rank]) => {
+      const isIndex = !isNaN(parseInt(key)) && !locations.some(l => l.itemId === key);
+      return {
+        itemId: isIndex ? undefined : key,
+        itineraryIdx: isIndex ? parseInt(key) : undefined,
+        rank
+      };
+    });
 
     if (votes.length === 0) return;
 
     try {
       setIsSubmitting(true);
+      // Pass snapshotId if we had it, but for now we rely on API to create a new one or link 
+      // Actually, POST API expects itemId, it looks up member.
       const response = await fetch('/api/ranked-votes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -123,6 +135,14 @@ export default function RankedVoting({ groupId, locations = [] }: RankedVotingPr
       case 3: return '3rd';
       default: return `${rank}th`;
     }
+  };
+
+  // Helper to find result for a specific location
+  const getResultForLocation = (loc: { itemId?: string }, index: number) => {
+    return results.find(r =>
+      (loc.itemId && r.itemId === loc.itemId) ||
+      (r.itineraryIdx === index)
+    );
   };
 
   if (locations.length === 0) return null;
@@ -176,34 +196,36 @@ export default function RankedVoting({ groupId, locations = [] }: RankedVotingPr
             Rank your top 3 choices. 1st choice = 5 points, 2nd = 4 points, 3rd = 3 points.
           </p>
           <div className="space-y-3">
-            {locations.map((loc, idx) => (
-              <div key={idx} className="flex items-center justify-between bg-white rounded-xl p-3 border border-slate-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center font-bold text-violet-600">
-                    {idx + 1}
+            {locations.map((loc, idx) => {
+              const key = loc.itemId || String(idx);
+              return (
+                <div key={key} className="flex items-center justify-between bg-white rounded-xl p-3 border border-slate-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center font-bold text-violet-600">
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <p className="font-medium text-slate-900">{loc.name}</p>
+                      <p className="text-xs text-slate-500">{loc.estimatedCost ? `₹${loc.estimatedCost}` : 'Price N/A'}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-slate-900">{loc.name}</p>
-                    <p className="text-xs text-slate-500">₹{loc.estimatedCost}</p>
+                  <div className="flex gap-2">
+                    {[1, 2, 3].map((rank) => (
+                      <button
+                        key={rank}
+                        onClick={() => handleRankChange(key, rank)}
+                        className={`w-10 h-10 rounded-xl font-bold text-sm transition-all border-2 ${draftVotes[key] === rank
+                            ? getRankColor(rank)
+                            : 'bg-slate-50 text-slate-400 border-slate-200 hover:border-violet-300'
+                          }`}
+                      >
+                        {getRankLabel(rank)}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {[1, 2, 3].map((rank) => (
-                    <button
-                      key={rank}
-                      onClick={() => handleRankChange(idx, rank)}
-                      className={`w-10 h-10 rounded-xl font-bold text-sm transition-all border-2 ${
-                        draftVotes[idx] === rank
-                          ? getRankColor(rank)
-                          : 'bg-slate-50 text-slate-400 border-slate-200 hover:border-violet-300'
-                      }`}
-                    >
-                      {getRankLabel(rank)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className="flex gap-2 mt-4">
             <Button
@@ -235,47 +257,53 @@ export default function RankedVoting({ groupId, locations = [] }: RankedVotingPr
             </Button>
           </div>
           <div className="space-y-3">
-            {results.map((result, index) => {
-              const loc = locations[result.itineraryIdx];
-              if (!loc) return null;
-              
-              const maxPoints = results[0]?.totalPoints || 1;
-              const percentage = (result.totalPoints / maxPoints) * 100;
-              
-              return (
-                <div key={result.itineraryIdx} className="relative">
-                  <div className={`flex items-center justify-between p-3 rounded-xl border-2 ${
-                    index === 0 ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${
-                        index === 0 ? 'bg-violet-500 text-white' : 'bg-slate-100 text-slate-600'
+            {/* Sort locations by their result points */}
+            {[...locations]
+              .sort((a, b) => {
+                const resA = getResultForLocation(a, locations.indexOf(a))?.totalPoints || 0;
+                const resB = getResultForLocation(b, locations.indexOf(b))?.totalPoints || 0;
+                return resB - resA;
+              })
+              .map((loc, index) => {
+                const originalIndex = locations.indexOf(loc);
+                const result = getResultForLocation(loc, originalIndex);
+                if (!result || result.totalPoints === 0) return null; // Hide places with 0 votes optionally, or show at bottom
+
+                const maxPoints = Math.max(...results.map(r => r.totalPoints), 1);
+                const percentage = (result.totalPoints / maxPoints) * 100;
+
+                return (
+                  <div key={loc.itemId || originalIndex} className="relative">
+                    <div className={`flex items-center justify-between p-3 rounded-xl border-2 ${index === 0 ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white'
                       }`}>
-                        #{index + 1}
-                      </div>
-                      <div>
-                        <p className="font-medium text-slate-900">{loc.name}</p>
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <span>🥇 {result.firstChoiceVotes}</span>
-                          <span>🥈 {result.secondChoiceVotes}</span>
-                          <span>🥉 {result.thirdChoiceVotes}</span>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${index === 0 ? 'bg-violet-500 text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                          #{index + 1}
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-900">{loc.name}</p>
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <span>🥇 {result.firstChoiceVotes}</span>
+                            <span>🥈 {result.secondChoiceVotes}</span>
+                            <span>🥉 {result.thirdChoiceVotes}</span>
+                          </div>
                         </div>
                       </div>
+                      <div className="text-right">
+                        <p className="font-bold text-violet-600">{result.totalPoints} pts</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-violet-600">{result.totalPoints} pts</p>
+                    {/* Progress bar */}
+                    <div className="h-1 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-500"
+                        style={{ width: `${percentage}%` }}
+                      />
                     </div>
                   </div>
-                  {/* Progress bar */}
-                  <div className="h-1 bg-slate-100 rounded-full mt-1 overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-500"
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         </div>
       )}
@@ -287,9 +315,13 @@ export default function RankedVoting({ groupId, locations = [] }: RankedVotingPr
             <p className="text-sm font-medium text-violet-700 mb-2">Your Rankings:</p>
             <div className="flex flex-wrap gap-2">
               {userVotes.sort((a, b) => a.rank - b.rank).map((vote) => {
-                const loc = locations[vote.itineraryIdx];
+                // Find location by itemId or idx
+                const loc = locations.find((l, idx) =>
+                  (l.itemId && vote.itemId === l.itemId) ||
+                  (idx === vote.itineraryIdx)
+                );
                 return loc ? (
-                  <span key={vote.itineraryIdx} className={`px-3 py-1 rounded-full text-sm font-medium ${getRankColor(vote.rank)}`}>
+                  <span key={vote.itemId || vote.itineraryIdx} className={`px-3 py-1 rounded-full text-sm font-medium ${getRankColor(vote.rank)}`}>
                     {getRankLabel(vote.rank)}: {loc.name}
                   </span>
                 ) : null;

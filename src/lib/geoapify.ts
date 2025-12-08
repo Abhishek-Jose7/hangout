@@ -42,7 +42,7 @@ export async function searchPlace(placeName: string, location: string): Promise<
     for (const query of queries) {
       const encodedQuery = encodeURIComponent(query);
       const url = `https://api.geoapify.com/v1/geocode/search?text=${encodedQuery}&apiKey=${GEOAPIFY_API_KEY}&limit=1`;
-      
+
       const response = await fetch(url);
       if (!response.ok) continue;
 
@@ -82,8 +82,8 @@ export async function searchPlace(placeName: string, location: string): Promise<
         photos: [], // Geoapify doesn't provide photos in the free tier
         priceLevel: additionalDetails.priceLevel || null,
         placeId: properties.place_id || '',
-        mapsLink: coordinates ? 
-          `https://www.openstreetmap.org/?mlat=${coordinates[1]}&mlon=${coordinates[0]}&zoom=15` : 
+        mapsLink: coordinates ?
+          `https://www.openstreetmap.org/?mlat=${coordinates[1]}&mlon=${coordinates[0]}&zoom=15` :
           `https://www.openstreetmap.org/search?query=${encodeURIComponent(placeName + ' ' + location)}`,
         reviews: [], // Geoapify doesn't provide reviews in the free tier
         userRatingsTotal: additionalDetails.userRatingsTotal || 0,
@@ -93,7 +93,7 @@ export async function searchPlace(placeName: string, location: string): Promise<
         } : undefined
       };
     }
-    
+
     // Fallback if no results found
     return {
       name: placeName,
@@ -126,7 +126,7 @@ export async function geocodeLocation(location: string): Promise<{ lat: number; 
   try {
     const encodedLocation = encodeURIComponent(location);
     const url = `https://api.geoapify.com/v1/geocode/search?text=${encodedLocation}&apiKey=${GEOAPIFY_API_KEY}&limit=1`;
-    
+
     const response = await fetch(url);
     if (!response.ok) return null;
 
@@ -143,5 +143,58 @@ export async function geocodeLocation(location: string): Promise<{ lat: number; 
   } catch (error) {
     console.error(`Error geocoding location '${location}':`, error);
     return null;
+  }
+}
+
+export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+  try {
+    const url = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lng}&apiKey=${GEOAPIFY_API_KEY}&limit=1`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!data.features || data.features.length === 0) return null;
+
+    const props = data.features[0].properties;
+    return props.suburb || props.district || props.city || props.county || 'Unknown Location';
+  } catch (error) {
+    console.error('Error reverse geocoding:', error);
+    return null;
+  }
+}
+
+export async function searchPlacesNearby(
+  lat: number,
+  lng: number,
+  categories: string[],
+  radiusMeters: number = 5000,
+  limit: number = 40
+): Promise<import('@/types/engine').Candidate[]> {
+  try {
+    const categoriesStr = categories.join(',');
+    const url = `https://api.geoapify.com/v2/places?categories=${categoriesStr}&filter=circle:${lng},${lat},${radiusMeters}&bias=proximity:${lng},${lat}&limit=${limit}&apiKey=${GEOAPIFY_API_KEY}`;
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error('Geoapify Places API error:', response.statusText);
+      return [];
+    }
+
+    const data = await response.json();
+    if (!data.features) return [];
+
+    return data.features.map((f: any) => ({
+      placeId: f.properties.place_id,
+      name: f.properties.name || f.properties.street || 'Unknown Place',
+      address: f.properties.formatted,
+      lat: f.geometry.coordinates[1],
+      lng: f.geometry.coordinates[0],
+      categories: f.properties.categories || [],
+      rating: 4.0, // Geoapify free tier rarely returns rating, defaulting for prototype
+      userRatingsTotal: 100,
+      priceLevel: 2
+    }));
+  } catch (error) {
+    console.error('Error searching places nearby:', error);
+    return [];
   }
 }

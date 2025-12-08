@@ -73,10 +73,37 @@ export interface RankedVote {
   groupId: string;
   memberId: string;
   member?: Member;
-  itineraryIdx: number;
+  snapshotId?: string; // New
+  itemId?: string; // New: replaces itineraryIdx
+  itineraryIdx?: number; // Deprecated
   rank: number; // 1 = first choice, 2 = second choice, etc.
   created_at: string;
   updated_at: string;
+}
+
+export interface ItinerarySnapshot {
+  id: string;
+  groupId: string;
+  source: string;
+  created_at: string;
+  metadata?: Record<string, any>;
+  items?: ItineraryItem[];
+}
+
+export interface ItineraryItem {
+  id: string;
+  snapshotId: string;
+  placeId?: string;
+  name: string;
+  description?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  rating?: number;
+  priceLevel?: number;
+  position: number;
+  metadata?: ItineraryDetail; // Reuse existing detail type
+  created_at: string;
 }
 
 export interface RankedVotingResult {
@@ -364,7 +391,12 @@ export interface CreateExpenseRequest {
 
 export interface RankedVoteRequest {
   groupId: string;
-  votes: { itineraryIdx: number; rank: number }[];
+  snapshotId?: string; // New
+  votes: {
+    itemId?: string; // New
+    itineraryIdx?: number; // Deprecated
+    rank: number
+  }[];
 }
 
 export interface TimeSlotRequest {

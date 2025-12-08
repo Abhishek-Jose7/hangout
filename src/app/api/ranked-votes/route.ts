@@ -59,14 +59,15 @@ export async function GET(request: NextRequest) {
 
     const userVotes = currentMember
       ? votes?.filter(v => v.memberId === currentMember.id).map(v => ({
-          itineraryIdx: v.itineraryIdx,
-          rank: v.rank
-        }))
+        itemId: v.itemId, // Updated to use itemId
+        itineraryIdx: v.itineraryIdx, // Keep for backward compatibility
+        rank: v.rank
+      }))
       : [];
 
-    // Calculate results using Borda count method
+    // Calculate results using Borda count method (aggregated by itemId)
     // Points: 1st choice = 5pts, 2nd = 4pts, 3rd = 3pts, 4th = 2pts, 5th = 1pt
-    const results: Record<number, {
+    const results: Record<string, {
       totalPoints: number;
       firstChoiceVotes: number;
       secondChoiceVotes: number;
@@ -75,8 +76,11 @@ export async function GET(request: NextRequest) {
     }> = {};
 
     votes?.forEach(vote => {
-      if (!results[vote.itineraryIdx]) {
-        results[vote.itineraryIdx] = {
+      // Use itemId as key if available, fallback to index for old votes
+      const key = vote.itemId || `idx_${vote.itineraryIdx}`;
+
+      if (!results[key]) {
+        results[key] = {
           totalPoints: 0,
           firstChoiceVotes: 0,
           secondChoiceVotes: 0,
@@ -87,21 +91,22 @@ export async function GET(request: NextRequest) {
 
       // Borda count: higher rank = more points
       const points = Math.max(0, 6 - vote.rank); // 1st=5, 2nd=4, 3rd=3, etc.
-      results[vote.itineraryIdx].totalPoints += points;
+      results[key].totalPoints += points;
 
-      if (vote.rank === 1) results[vote.itineraryIdx].firstChoiceVotes++;
-      if (vote.rank === 2) results[vote.itineraryIdx].secondChoiceVotes++;
-      if (vote.rank === 3) results[vote.itineraryIdx].thirdChoiceVotes++;
+      if (vote.rank === 1) results[key].firstChoiceVotes++;
+      if (vote.rank === 2) results[key].secondChoiceVotes++;
+      if (vote.rank === 3) results[key].thirdChoiceVotes++;
 
-      if (vote.member?.name && !results[vote.itineraryIdx].voters.includes(vote.member.name)) {
-        results[vote.itineraryIdx].voters.push(vote.member.name);
+      if (vote.member?.name && !results[key].voters.includes(vote.member.name)) {
+        results[key].voters.push(vote.member.name);
       }
     });
 
     // Sort by total points
     const sortedResults = Object.entries(results)
-      .map(([idx, data]) => ({
-        itineraryIdx: parseInt(idx),
+      .map(([key, data]) => ({
+        itemId: key.startsWith('idx_') ? undefined : key,
+        itineraryIdx: key.startsWith('idx_') ? parseInt(key.replace('idx_', '')) : undefined,
         ...data
       }))
       .sort((a, b) => {
@@ -150,7 +155,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body: RankedVoteRequest = await request.json();
-    const { groupId, votes } = body;
+    const { groupId, votes, snapshotId } = body;
 
     if (!groupId || !votes || !Array.isArray(votes)) {
       return NextResponse.json(
@@ -196,7 +201,9 @@ export async function POST(request: NextRequest) {
       id: randomUUID(),
       groupId,
       memberId: currentMember.id,
-      itineraryIdx: v.itineraryIdx,
+      itemId: v.itemId, // New core identifier
+      itineraryIdx: v.itineraryIdx, // Optional backward compat
+      snapshotId: snapshotId, // New tracking for snapshot version
       rank: v.rank
     }));
 
@@ -212,31 +219,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch updated results
-    const { data: allVotes } = await supabase
-      .from('RankedVote')
-      .select('*')
-      .eq('groupId', groupId);
-
-    // Recalculate results
-    const results: Record<number, { totalPoints: number; firstChoiceVotes: number }> = {};
-    allVotes?.forEach(vote => {
-      if (!results[vote.itineraryIdx]) {
-        results[vote.itineraryIdx] = { totalPoints: 0, firstChoiceVotes: 0 };
-      }
-      results[vote.itineraryIdx].totalPoints += Math.max(0, 6 - vote.rank);
-      if (vote.rank === 1) results[vote.itineraryIdx].firstChoiceVotes++;
-    });
-
-    const sortedResults = Object.entries(results)
-      .map(([idx, data]) => ({ itineraryIdx: parseInt(idx), ...data }))
-      .sort((a, b) => b.totalPoints - a.totalPoints || b.firstChoiceVotes - a.firstChoiceVotes);
-
     return NextResponse.json({
       success: true,
       votes: voteRecords,
-      results: sortedResults,
-      winner: sortedResults[0] || null
+      message: 'Votes cast successfully'
     });
   } catch (error) {
     console.error('Error submitting ranked votes:', error);
